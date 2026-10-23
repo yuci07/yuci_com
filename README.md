@@ -110,10 +110,10 @@ yuci_com.exe --headless --port COM5 --baud 115200 --seconds 10 --out heartbeat.t
 
 `--seconds 0` 表示一直抓，直到手动停止；带 `--out` 时控制台照样实时输出，文件同时写入。
 
-## 在 IDE 里用（CLion / VS Code）
+## 在 IDE 里用
 
 `tools/yuci-monitor.cmd` 是给 IDE 调用的包装脚本：自动挑 USB 串口（跳过蓝牙占位口）、
-参数化抓包、可同时落盘。IDE 的 Run 窗口就是串口窗口，不用再开一个程序。
+参数化抓包、可同时落盘。IDE 的输出窗口就是串口窗口，不用再开一个程序。
 
 ```bat
 tools\yuci-monitor.cmd                 :: 自动识别端口，抓 10 秒
@@ -125,42 +125,24 @@ tools\yuci-monitor.cmd -g              :: 打开图形界面
 tools\yuci-monitor.cmd -l              :: 列端口
 ```
 
-### CLion
+各 IDE 的挂法（每份都是拷一个文件 / 点几下）：
 
-把 `ide/clion/External Tools.xml` 拷到工程根目录的 `.idea/tools/`（没有就建），
-重载项目后在 `Tools → External Tools` 里出现 5 个菜单项：
+| IDE | 怎么挂 | 配置文件 |
+| --- | --- | --- |
+| CLion | External Tools | `ide/clion/External Tools.xml` |
+| IntelliJ IDEA / PyCharm | External Tools（同一份通用） | 同上 |
+| VS Code | Task，`Ctrl+Shift+B` 触发 | `ide/vscode/tasks.json` |
+| Keil µVision 5 | Tools → Customize Tools Menu | `ide/keil/README.md` |
+| STM32CubeIDE / Eclipse | Run → External Tools | `ide/stm32cubeide/` |
 
-| 菜单 | 作用 |
-| --- | --- |
-| 抓串口 10 秒 | 烧录完点一下，Run 窗口直接看输出 |
-| 抓串口 HEX 5 秒 | 看二进制协议帧 |
-| 抓串口 30 秒并落盘 | 写 `serial_capture.log` |
-| 打开串口助手 | 起完整 GUI |
-| 列出串口 | 确认板子在 COM 几 |
+详细步骤、全局配置方法、常见问题见 **[ide/README.md](ide/README.md)**。
 
-模板里的 `C:\coding\yuci_com\tools\yuci-monitor.cmd` 需改成你自己的路径。
+以 CLion 为例，拷到工程根目录的 `.idea/tools/` 后重载项目，`Tools → External Tools` 里就有
+5 个菜单项（抓 10 秒 / HEX 5 秒 / 30 秒落盘 / 打开 GUI / 列串口）。模板里的
+`C:\coding\yuci_com\tools\yuci-monitor.cmd` 要改成你自己的路径。
+
 想烧录后自动抓日志：`Run → Edit Configurations → Before launch → + → Run External Tool`，
 选「抓串口 10 秒」（会让烧录流程多等 10 秒）。
-
-### VS Code
-
-`.vscode/tasks.json`：
-
-```json
-{
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "serial: monitor 10s",
-      "type": "shell",
-      "command": "tools/yuci-monitor.cmd",
-      "args": ["-t", "10"],
-      "presentation": { "reveal": "always", "panel": "dedicated" },
-      "problemMatcher": []
-    }
-  ]
-}
-```
 
 ## 快捷键
 
@@ -212,7 +194,7 @@ yuci_com/
 ├── yuci_com.ico                  exe 图标
 ├── docs/                         截图
 ├── tools/yuci-monitor.cmd        IDE / 脚本调用的抓包包装器
-├── ide/clion/External Tools.xml  CLion 外部工具模板
+├── ide/                          各 IDE 接入配置（CLion / VS Code / Keil / CubeIDE）
 ├── build.bat                     Windows 构建脚本
 ├── build.sh                      Linux / macOS 构建脚本
 ├── pom.xml                       Maven 构建（可选）

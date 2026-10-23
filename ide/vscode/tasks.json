@@ -1,0 +1,59 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "yuci_com: 抓串口 10 秒",
+      "detail": "自动识别 USB 串口，抓 10 秒数据到终端面板",
+      "type": "process",
+      "command": "cmd",
+      "args": ["/c", "C:\\coding\\yuci_com\\tools\\yuci-monitor.cmd", "-t", "10"],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "yuci_com: 抓串口 HEX 5 秒",
+      "detail": "HEX 模式，适合看二进制协议帧",
+      "type": "process",
+      "command": "cmd",
+      "args": ["/c", "C:\\coding\\yuci_com\\tools\\yuci-monitor.cmd", "-t", "5", "-x"],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "yuci_com: 抓串口 30 秒并落盘",
+      "detail": "写入 serial_capture.log，终端仍实时刷新",
+      "type": "process",
+      "command": "cmd",
+      "args": ["/c", "C:\\coding\\yuci_com\\tools\\yuci-monitor.cmd", "-t", "30", "-o", "serial_capture.log"],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "yuci_com: 一直抓（停止按钮结束）",
+      "detail": "不限时长，看多久都行",
+      "type": "process",
+      "command": "cmd",
+      "args": ["/c", "C:\\coding\\yuci_com\\tools\\yuci-monitor.cmd", "-t", "0"],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "yuci_com: 打开串口助手",
+      "detail": "启动图形界面（背景图、快捷发送、协议组包）",
+      "type": "process",
+      "command": "cmd",
+      "args": ["/c", "C:\\coding\\yuci_com\\tools\\yuci-monitor.cmd", "-g"],
+      "presentation": { "reveal": "silent" },
+      "problemMatcher": []
+    },
+    {
+      "label": "yuci_com: 列出串口",
+      "detail": "确认板子在 COM 几",
+      "type": "process",
+      "command": "cmd",
+      "args": ["/c", "C:\\coding\\yuci_com\\tools\\yuci-monitor.cmd", "-l"],
+      "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+      "problemMatcher": []
+    }
+  ]
+}

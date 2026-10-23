@@ -72,30 +72,27 @@ goto usage
 :after_parse
 if defined PORT goto run
 
-rem --- auto detect: prefer a real USB-UART bridge over bluetooth ports ---
+rem --- auto detect: prefer a real USB-UART bridge, never guess among several ---
+set "FIRST="
+set "TOTAL=0"
 for /f "usebackq tokens=1,*" %%a in (`"%EXE%" --list 2^>nul`) do (
     set "CAND=%%a"
     if /i "!CAND:~0,3!"=="COM" (
+        set /a TOTAL+=1
+        if not defined FIRST set "FIRST=%%a"
         if not defined PORT (
-            echo %%b | findstr /i /c:"CH340" /c:"CH341" /c:"CH9102" /c:"CP210" /c:"FTDI" /c:"USB-SERIAL" /c:"USB Serial" /c:"Prolific" /c:"Silicon Labs" >nul && set "PORT=%%a"
+            echo %%b | findstr /i /c:"CH340" /c:"CH341" /c:"CH9102" /c:"CP210" /c:"FTDI" /c:"USB-SERIAL" /c:"USB Serial" /c:"Prolific" /c:"Silicon Labs" /c:"STLink" /c:"ST-Link" /c:"Virtual COM" /c:"Maple" >nul && set "PORT=%%a"
         )
     )
 )
 
-rem --- fallback: the first COM port available ---
-if not defined PORT (
-    for /f "usebackq tokens=1,*" %%a in (`"%EXE%" --list 2^>nul`) do (
-        set "CAND=%%a"
-        if /i "!CAND:~0,3!"=="COM" (
-            if not defined PORT set "PORT=%%a"
-        )
-    )
-)
+rem --- only one port on the machine? then it must be that one ---
+if not defined PORT if "!TOTAL!"=="1" set "PORT=!FIRST!"
 
 if not defined PORT (
-    echo [yuci] no serial port detected.
+    echo [yuci] found !TOTAL! serial ports, none looks like a USB-UART bridge.
     "%EXE%" --list
-    echo [yuci] plug the board in, or specify one with: -p COM5
+    echo [yuci] pick one explicitly, e.g.:  -p COM5
     exit /b 3
 )
 

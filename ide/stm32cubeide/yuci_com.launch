@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<launchConfiguration type="org.eclipse.ui.externaltools.ProgramLaunchConfigurationType">
+    <stringAttribute key="org.eclipse.ui.externaltools.ATTR_LOCATION" value="C:\Windows\System32\cmd.exe"/>
+    <stringAttribute key="org.eclipse.ui.externaltools.ATTR_TOOL_ARGUMENTS" value="/c &quot;C:\coding\yuci_com\tools\yuci-monitor.cmd&quot; -t 10"/>
+    <stringAttribute key="org.eclipse.ui.externaltools.ATTR_WORKING_DIRECTORY" value="${project_loc}"/>
+    <booleanAttribute key="org.eclipse.ui.externaltools.ATTR_APPEND_ENVIRONMENT_VARIABLES" value="true"/>
+    <booleanAttribute key="org.eclipse.debug.core.appendEnvironmentVariables" value="true"/>
+</launchConfiguration>

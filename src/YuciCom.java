@@ -58,7 +58,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class YuciCom {
 
     public static final String APP = "yuci_com";
-    public static final String VERSION = "2.1.1";
+    public static final String VERSION = "2.2";
     /** 开源仓库地址：fork 之后把这一行改成自己的仓库即可。 */
     public static final String PROJECT_URL = "https://github.com/yuci07/yuci_com";
 

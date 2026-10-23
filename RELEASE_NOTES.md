@@ -1,3 +1,67 @@
+# v2.2 —— 接进你的 IDE
+
+这一版没动核心功能，补的是「怎么让它待在编辑器里不来回切窗口」。
+
+## IDE 接入
+
+新增 `tools/yuci-monitor.cmd` 包装器 + `ide/` 下五套现成配置：
+
+| IDE | 接入方式 | 文件 |
+| --- | --- | --- |
+| CLion | External Tools | `ide/clion/External Tools.xml` |
+| IntelliJ IDEA / PyCharm / GoLand | External Tools（同一份通用） | 同上 |
+| VS Code | Task，`Ctrl+Shift+B` | `ide/vscode/tasks.json` |
+| Keil µVision 5 | Tools → Customize Tools Menu | `ide/keil/README.md` |
+| STM32CubeIDE / Eclipse | Run → External Tools | `ide/stm32cubeide/` |
+
+配好之后，烧录完点一下菜单，串口输出直接刷在 IDE 自己的输出窗口里。
+
+## 包装器
+
+```bat
+yuci-monitor.cmd                 自动识别端口，抓 10 秒
+yuci-monitor.cmd -p COM5 -t 30   指定端口与时长
+yuci-monitor.cmd -t 5 -x         HEX 模式
+yuci-monitor.cmd -t 0            一直抓，手动停止
+yuci-monitor.cmd -t 20 -o a.txt  同时写文件，控制台照样实时刷
+yuci-monitor.cmd -g              打开图形界面
+yuci-monitor.cmd -l              列串口
+```
+
+自动识别只认 USB-UART 桥（CH340 / CP210 / FTDI / STLink / Virtual COM 等）；
+机器上只有一个串口时直接用；多个口又都不匹配就报错要你 `-p` 指定 ——
+Windows 上 COM3/COM4 常是蓝牙占位口，连上去什么也收不到，所以不做猜测。
+
+## 命令行改进
+
+- `--seconds 0`：不限时长，靠停止按钮 / `Ctrl+C` 结束
+- `--out` 改成双写：控制台实时输出 + 文件同时落盘
+  （2.1.1 及以前带 `--out` 时控制台是空的）
+
+## 修复
+
+- Windows 控制台中文乱码：打包补 `-Dstdout.encoding=UTF-8` / `-Dstderr.encoding=UTF-8`。
+  之前在 CLion 的 Run 窗口里，`--list` 的端口描述显示成一串问号方块。
+  只在 bat 里 `chcp 65001` 是没用的，必须落到 jpackage 的 java-options。
+
+## 验证
+
+自检 33 项全过。真机（STM32F103 + CH340，115200 8N1）实测：
+
+```
+[yuci] port=COM5 baud=115200 time=4s hex=
+-- opened COM5 @115200 8N1 for 4s --
+t=1035000 ms
+t=1036000 ms
+t=1037000 ms
+t=1038000 ms
+-- closed, received data --
+```
+
+HEX 模式、`-o` 落盘、`-t 0` 无限抓、板子拔掉后拒绝猜测蓝牙口，均验证通过。
+
+---
+
 # v2.1.1 —— 真机联调修复
 
 > **重要：2.1 在真实串口下收不到任何数据，请升级到 2.1.1。**

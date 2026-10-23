@@ -91,7 +91,7 @@ if not exist "%ROOT%\dist" mkdir "%ROOT%\dist"
   --main-class YuciCom ^
   --icon "%ROOT%\yuci_com.ico" ^
   --dest "%ROOT%\dist" ^
-  --app-version 2.1 ^
+  --app-version 2.2 ^
   --vendor "yuci" ^
   --add-modules java.base,java.desktop,java.logging,jdk.unsupported ^
   --java-options "-Xmx512m" ^

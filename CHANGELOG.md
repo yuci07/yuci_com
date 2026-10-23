@@ -1,11 +1,13 @@
 # 更新日志
 
-## 2.2 · 未发布
+## 2.2 · 2026-10-24
 
 ### 新增
-- **IDE 接入**：`tools/yuci-monitor.cmd` 包装器，自动识别 USB 串口（跳过蓝牙占位口），
-  支持 `-p / -b / -t / -x / -o / -g / -l`；`ide/clion/External Tools.xml` 是 CLion 外部工具模板，
-  拷进 `.idea/tools/` 即可在 `Tools → External Tools` 一键抓包，输出直接进 Run 窗口
+- **IDE 接入**：`tools/yuci-monitor.cmd` 包装器，自动识别 USB 串口桥
+  （CH340/CP210/FTDI/STLink 等；多口且都不匹配时拒绝猜测，要求 `-p` 指定），
+  支持 `-p / -b / -t / -x / -o / -g / -l`；`ide/` 下备好五套配置：
+  CLion / IntelliJ（External Tools XML）、VS Code（tasks.json）、
+  Keil（Customize Tools Menu 步骤）、STM32CubeIDE（External Tools + launch 文件）
 - **`--seconds 0` 一直抓**：不带时长上限，靠停止按钮 / `Ctrl+C` 结束
 - **控制台与文件双写**：`--out` 不再把控制台变哑巴，日志同时实时打印并写入文件
 
