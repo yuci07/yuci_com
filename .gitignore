@@ -1,0 +1,32 @@
+# 编译产物
+build/
+dist/
+target/
+out/
+*.class
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.project
+.classpath
+
+# 系统
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 日志与临时文件
+*.log
+*.tmp
+hs_err_pid*.log
+
+# 本地运行时配置（不应该提交）
+*.properties.local
+
+# 允许提交依赖 jar（离线构建需要）
+!lib/*.jar

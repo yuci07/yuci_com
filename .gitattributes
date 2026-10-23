@@ -1,0 +1,15 @@
+# 统一换行，避免 Windows/Linux 协作时整个文件 diff
+* text=auto eol=lf
+
+# Windows 脚本必须 CRLF，否则 cmd 解析出错
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 类 Unix 脚本必须 LF
+*.sh text eol=lf
+
+# 二进制
+*.png binary
+*.ico binary
+*.jar binary
+*.exe binary
