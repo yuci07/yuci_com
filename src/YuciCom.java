@@ -981,7 +981,28 @@ public class YuciCom {
             try {
                 if (outFile != null) {
                     fos = new FileOutputStream(outFile);
-                    out = new PrintStream(fos, true, "UTF-8");
+                    /* 一边写文件、一边打到控制台：IDE 里能实时看，事后又有日志可查 */
+                    final PrintStream fileOut = new PrintStream(fos, true, "UTF-8");
+                    final PrintStream console = System.out;
+                    out = new PrintStream(new OutputStream() {
+                        @Override
+                        public void write(int b) throws java.io.IOException {
+                            fileOut.write(b);
+                            console.write(b);
+                        }
+
+                        @Override
+                        public void write(byte[] b, int off, int len) throws java.io.IOException {
+                            fileOut.write(b, off, len);
+                            console.write(b, off, len);
+                        }
+
+                        @Override
+                        public void flush() throws java.io.IOException {
+                            fileOut.flush();
+                            console.flush();
+                        }
+                    }, true, "UTF-8");
                 }
             } catch (Exception e) {
                 System.err.println("无法写文件: " + e.getMessage());
@@ -1008,8 +1029,9 @@ public class YuciCom {
                 System.err.println("打开失败: " + engine.lastError());
                 return 3;
             }
-            o.println("-- opened " + portName + " @" + baud + " 8N1 for " + seconds + "s --");
-            long end = System.currentTimeMillis() + seconds * 1000L;
+            o.println("-- opened " + portName + " @" + baud + " 8N1 for "
+                    + (seconds > 0 ? seconds + "s" : "as long as you want") + " --");
+            long end = seconds > 0 ? System.currentTimeMillis() + seconds * 1000L : Long.MAX_VALUE;
             long lastDump = 0;
             while (System.currentTimeMillis() < end) {
                 try {

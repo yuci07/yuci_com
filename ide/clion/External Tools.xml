@@ -1,0 +1,43 @@
+<!--
+  CLion External Tools 模板
+  用法：拷到工程根目录的 .idea/tools/ 下（目录不存在就新建），
+        重载项目后出现在 Tools → External Tools。
+  注意：把下面 5 处 C:\coding\yuci_com 改成你自己的 yuci_com 安装路径。
+-->
+<toolSet name="External Tools">
+  <tool name="yuci_com · 抓串口 10 秒" description="自动识别 USB 串口，抓 10 秒数据到 Run 窗口" showInMainMenu="true" showInEditor="true" showInProject="true" showInSearchPopup="true" disabled="false" useConsole="true" showConsoleOnStdOut="true" showConsoleOnStdErr="true" synchronizeAfterRun="true">
+    <exec>
+      <option name="COMMAND" value="cmd" />
+      <option name="PARAMETERS" value="/c &quot;C:\coding\yuci_com\tools\yuci-monitor.cmd&quot; -t 10" />
+      <option name="WORKING_DIRECTORY" value="$ProjectFileDir$" />
+    </exec>
+  </tool>
+  <tool name="yuci_com · 抓串口 HEX 5 秒" description="HEX 模式抓 5 秒，适合看二进制协议帧" showInMainMenu="true" showInEditor="true" showInProject="true" showInSearchPopup="true" disabled="false" useConsole="true" showConsoleOnStdOut="true" showConsoleOnStdErr="true" synchronizeAfterRun="true">
+    <exec>
+      <option name="COMMAND" value="cmd" />
+      <option name="PARAMETERS" value="/c &quot;C:\coding\yuci_com\tools\yuci-monitor.cmd&quot; -t 5 -x" />
+      <option name="WORKING_DIRECTORY" value="$ProjectFileDir$" />
+    </exec>
+  </tool>
+  <tool name="yuci_com · 抓串口 30 秒并落盘" description="抓 30 秒并写入 serial_capture.log（工作目录为工程根）" showInMainMenu="true" showInEditor="true" showInProject="true" showInSearchPopup="true" disabled="false" useConsole="true" showConsoleOnStdOut="true" showConsoleOnStdErr="true" synchronizeAfterRun="true">
+    <exec>
+      <option name="COMMAND" value="cmd" />
+      <option name="PARAMETERS" value="/c &quot;C:\coding\yuci_com\tools\yuci-monitor.cmd&quot; -t 30 -o serial_capture.log" />
+      <option name="WORKING_DIRECTORY" value="$ProjectFileDir$" />
+    </exec>
+  </tool>
+  <tool name="yuci_com · 打开串口助手" description="启动完整图形界面（背景图、快捷发送、协议组包都在这里）" showInMainMenu="true" showInEditor="true" showInProject="true" showInSearchPopup="true" disabled="false" useConsole="true" showConsoleOnStdOut="false" showConsoleOnStdErr="false" synchronizeAfterRun="true">
+    <exec>
+      <option name="COMMAND" value="cmd" />
+      <option name="PARAMETERS" value="/c &quot;C:\coding\yuci_com\tools\yuci-monitor.cmd&quot; -g" />
+      <option name="WORKING_DIRECTORY" value="$ProjectFileDir$" />
+    </exec>
+  </tool>
+  <tool name="yuci_com · 列出串口" description="列出当前系统所有串口及描述" showInMainMenu="true" showInEditor="true" showInProject="true" showInSearchPopup="true" disabled="false" useConsole="true" showConsoleOnStdOut="true" showConsoleOnStdErr="true" synchronizeAfterRun="true">
+    <exec>
+      <option name="COMMAND" value="cmd" />
+      <option name="PARAMETERS" value="/c &quot;C:\coding\yuci_com\tools\yuci-monitor.cmd&quot; -l" />
+      <option name="WORKING_DIRECTORY" value="$ProjectFileDir$" />
+    </exec>
+  </tool>
+</toolSet>

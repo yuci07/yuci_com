@@ -1,5 +1,18 @@
 # 更新日志
 
+## 2.2 · 未发布
+
+### 新增
+- **IDE 接入**：`tools/yuci-monitor.cmd` 包装器，自动识别 USB 串口（跳过蓝牙占位口），
+  支持 `-p / -b / -t / -x / -o / -g / -l`；`ide/clion/External Tools.xml` 是 CLion 外部工具模板，
+  拷进 `.idea/tools/` 即可在 `Tools → External Tools` 一键抓包，输出直接进 Run 窗口
+- **`--seconds 0` 一直抓**：不带时长上限，靠停止按钮 / `Ctrl+C` 结束
+- **控制台与文件双写**：`--out` 不再把控制台变哑巴，日志同时实时打印并写入文件
+
+### 修复
+- **Windows 控制台中文乱码**：打包时补 `-Dstdout.encoding=UTF-8` / `-Dstderr.encoding=UTF-8`，
+  端口描述、错误提示在 CLion 的 Run 窗口和 UTF-8 终端里不再乱码
+
 ## 2.1.1 · 2026-10-24
 
 真机联调（STM32F103 + CH340，115200 8N1）后补的修复。**2.1 在真实串口下收不到任何数据，请务必用这一版。**

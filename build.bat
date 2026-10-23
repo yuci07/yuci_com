@@ -94,7 +94,9 @@ if not exist "%ROOT%\dist" mkdir "%ROOT%\dist"
   --app-version 2.1 ^
   --vendor "yuci" ^
   --add-modules java.base,java.desktop,java.logging,jdk.unsupported ^
-  --java-options "-Xmx512m"
+  --java-options "-Xmx512m" ^
+  --java-options "-Dstdout.encoding=UTF-8" ^
+  --java-options "-Dstderr.encoding=UTF-8"
 if errorlevel 1 (
   echo [ERROR] jpackage failed
   exit /b 1

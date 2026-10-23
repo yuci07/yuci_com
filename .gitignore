@@ -22,6 +22,7 @@ desktop.ini
 
 # 日志与临时文件
 *.log
+build_log.txt
 *.tmp
 hs_err_pid*.log
 
