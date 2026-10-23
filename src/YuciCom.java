@@ -58,7 +58,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class YuciCom {
 
     public static final String APP = "yuci_com";
-    public static final String VERSION = "2.1";
+    public static final String VERSION = "2.1.1";
     /** 开源仓库地址：fork 之后把这一行改成自己的仓库即可。 */
     public static final String PROJECT_URL = "https://github.com/yuci07/yuci_com";
 
@@ -271,6 +271,24 @@ public class YuciCom {
             return port == null ? "" : port.getSystemPortName();
         }
 
+        /* 已打开端口上驱动真正生效的参数。注意必须从打开的那个实例读，
+           重新 getCommPort(name) 拿到的是新对象，返回的只是默认值（9600 8N1）。 */
+        int actualBaud() {
+            return port == null ? 0 : port.getBaudRate();
+        }
+
+        int actualDataBits() {
+            return port == null ? 0 : port.getNumDataBits();
+        }
+
+        int actualParity() {
+            return port == null ? SerialPort.NO_PARITY : port.getParity();
+        }
+
+        int actualStopBits() {
+            return port == null ? SerialPort.ONE_STOP_BIT : port.getNumStopBits();
+        }
+
         boolean open(String name, int baud, int dataBits, int parity, int stopBits, int flow,
                      int readTimeoutMs, SerialListener l) {
             close();
@@ -294,26 +312,18 @@ public class YuciCom {
             port = p;
             listener = l;
             running = true;
-            final InputStream in;
-            try {
-                in = p.getInputStream();
-            } catch (Exception e) {
-                lastError.append("获取输入流失败: ").append(e.getMessage());
-                close();
-                return false;
-            }
+            /* 注意：这里必须用 SerialPort.readBytes()，不能用 getInputStream()。
+               jSerialComm 的 InputStream 包装在 TIMEOUT_READ_SEMI_BLOCKING 模式下，
+               超时（无数据）会抛 SerialPortTimeoutException 而不是返回 0，
+               一旦总线空闲超过 readTimeoutMs 接收线程就死了（现象：打开后永远收不到数据）。
+               readBytes() 在超时时正常返回 0，可以安全地当作「空闲」继续循环。 */
             rxThread = new Thread(() -> {
                 byte[] buf = new byte[8192];
+                final SerialPort sp = port;
                 while (running) {
+                    int n;
                     try {
-                        int n = in.read(buf, 0, buf.length);
-                        if (n > 0) {
-                            byte[] copy = new byte[n];
-                            System.arraycopy(buf, 0, copy, 0, n);
-                            if (listener != null) listener.onData(copy, n);
-                        } else if (n < 0) {
-                            if (!running) break;
-                        }
+                        n = sp.readBytes(buf, buf.length);
                     } catch (Exception e) {
                         if (running) {
                             lastError.append("读取异常: ").append(e.getMessage());
@@ -321,6 +331,16 @@ public class YuciCom {
                         }
                         break;
                     }
+                    if (n > 0) {
+                        byte[] copy = new byte[n];
+                        System.arraycopy(buf, 0, copy, 0, n);
+                        if (listener != null) listener.onData(copy, n);
+                    } else if (n < 0) {
+                        if (!running) break;
+                        if (listener != null) listener.onClosed("设备已断开");
+                        break;
+                    }
+                    /* n == 0：读超时但端口正常，仅代表这段时间没有数据 */
                 }
             }, "yuci-rx");
             rxThread.setDaemon(true);
@@ -1838,14 +1858,9 @@ public class YuciCom {
             engine.setDtr(chkDtr.isSelected());
             engine.setRts(chkRts.isSelected());
             afterOpen(name, baud, dataBits, parity, stop, flow);
-            SerialPort p = SerialEngine.find(name);
-            if (p != null) {
-                sys("已打开 " + name + " → 实际参数 " + p.getBaudRate() + " " + p.getNumDataBits()
-                        + parityLetter(p.getParity()) + stopLetter(p.getNumStopBits())
-                        + "，DTR=" + (chkDtr.isSelected() ? 1 : 0) + " RTS=" + (chkRts.isSelected() ? 1 : 0));
-            } else {
-                sys("已打开 " + name);
-            }
+            sys("已打开 " + name + " → 实际参数 " + engine.actualBaud() + " " + engine.actualDataBits()
+                    + parityLetter(engine.actualParity()) + stopLetter(engine.actualStopBits())
+                    + "，DTR=" + (chkDtr.isSelected() ? 1 : 0) + " RTS=" + (chkRts.isSelected() ? 1 : 0));
         }
 
         private void afterOpen(String name, int baud, int dataBits, int parity, int stop, int flow) {

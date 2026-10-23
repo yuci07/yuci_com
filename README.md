@@ -51,12 +51,13 @@
 - 所有配置持久化到 `~/.yuci_com/config.properties`，可导出/导入
 - 内置自检：`--selftest` 覆盖 CRC 标准向量、HEX 解析、跨包解码、组包逻辑等 33 项
 - 命令行抓包模式：`--headless --port COM5 --seconds 5`，方便写脚本自动化测试
+- 真机验证过：STM32F103 + CH340 115200 8N1，心跳与回显均正常（见 CHANGELOG 2.1.1）
 
 ## 下载与运行
 
 **方式一：直接用 exe（推荐）**
 
-到 [Releases](../../releases) 下载 `yuci_com-2.1-win-x64.zip`，解压后双击 `yuci_com.exe`。
+到 [Releases](../../releases) 下载 `yuci_com-2.1.1-win-x64.zip`，解压后双击 `yuci_com.exe`。
 绿色版，不用安装，整个目录可以拷到 U 盘。
 
 **方式二：跑 jar**

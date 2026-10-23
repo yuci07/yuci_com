@@ -1,3 +1,44 @@
+# v2.1.1 —— 真机联调修复
+
+> **重要：2.1 在真实串口下收不到任何数据，请升级到 2.1.1。**
+
+在 STM32F103 + CH340（115200 8N1）上做的第一次真机联调，暴露了两个自检覆盖不到的问题：
+
+**1. 打开串口后接收线程 100 ms 就死掉（严重）**
+
+`SerialEngine` 原来用 `port.getInputStream()` 读数据。jSerialComm 的 `InputStream` 包装在
+`TIMEOUT_READ_SEMI_BLOCKING` 模式下，**读超时会抛 `SerialPortTimeoutException` 而不是返回 0**。
+于是总线一空闲超过 100 ms，接收线程就被异常打断，回调 `onClosed("读取中断…")`——
+表现就是「状态栏显示已连接，但一条数据也收不到」。
+
+改为直接调 `SerialPort.readBytes()`：超时返回 `0` 当作空闲继续循环，返回 `-1` 才判定为设备断开。
+
+**2. 「实际参数」永远显示 9600 8N1（显示错误）**
+
+打开后回读参数用的是 `SerialPort.getCommPort(name)` 新建的对象，拿到的是默认值。
+改为从已打开的那个实例读回。
+
+## 验证
+
+```
+$ yuci_com.exe --headless --port COM5 --seconds 4
+-- opened COM5 @115200 8N1 for 4s --
+t=747000 ms
+t=748000 ms
+t=749000 ms
+t=750000 ms
+```
+
+```
+$ yuci_com.exe --headless --port COM5 --seconds 3 --hex
+74 3D 37 35 32 30 30 30 20 6D 73 0D 0A     →  t=752000 ms\r\n
+```
+
+界面侧（离屏驱动，不注入任何输入事件）：状态栏「已连接 COM5 · 115200 8N1」，
+接收区带时间戳显示心跳，发送 `HELLO_GUI` 后原样回显。
+
+---
+
 # v2.1 —— 功能补齐与开源首发
 
 首个开源版本。从「能用」推到「和 ATK-XCOM 一个量级」，并修掉两个真实缺陷。
