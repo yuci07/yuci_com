@@ -1,4 +1,6 @@
 import com.fazecast.jSerialComm.SerialPort;
+import com.formdev.flatlaf.FlatDarkLaf;
+import com.formdev.flatlaf.FlatLightLaf;
 import org.luaj.vm2.Globals;
 import org.luaj.vm2.LoadState;
 import org.luaj.vm2.LuaError;
@@ -1092,20 +1094,39 @@ public class YuciCom {
 
     /* ==================== 视觉规范 ==================== */
 
-    /** 浅色主题的一整套色值和字体。想换配色只改这里。 */
+    /** 颜色全部从当前 FlatLaf 主题里取，深浅色切换时自动跟着变；只有强调色写死。 */
     static final class Ui {
-        static final Color BG = new Color(0xF5, 0xF6, 0xF8);
-        static final Color SURFACE = new Color(0xFF, 0xFF, 0xFF);
-        static final Color PANEL = new Color(0xFA, 0xFB, 0xFC);
-        static final Color BORDER = new Color(0xE3, 0xE6, 0xEB);
-        static final Color TEXT = new Color(0x1F, 0x23, 0x28);
-        static final Color MUTED = new Color(0x6B, 0x72, 0x80);
-        static final Color PRIMARY = new Color(0x2F, 0x6F, 0xED);
-        static final Color PRIMARY_HOVER = new Color(0x25, 0x60, 0xD4);
+        static final Color PRIMARY = new Color(0x3B, 0x82, 0xF6);
+        static final Color PRIMARY_HOVER = new Color(0x2F, 0x6F, 0xED);
         static final Color PRIMARY_DOWN = new Color(0x1D, 0x4E, 0xB3);
         static final Color HOVER = new Color(0xEE, 0xF2, 0xF8);
-        static final Color OK = new Color(0x16, 0xA3, 0x4A);
-        static final Color DANGER = new Color(0xDC, 0x2A, 0x2A);
+        static final Color OK = new Color(0x2E, 0xA0, 0x5A);
+        static final Color DANGER = new Color(0xE0, 0x4B, 0x4B);
+
+        static Color surface() {
+            return pick("Panel.background", Color.WHITE);
+        }
+
+        static Color panel() {
+            return pick("Panel.background", new Color(0xF7, 0xF8, 0xFA));
+        }
+
+        static Color border() {
+            return pick("Component.borderColor", new Color(0xE3, 0xE6, 0xEB));
+        }
+
+        static Color text() {
+            return pick("Label.foreground", new Color(0x1F, 0x23, 0x28));
+        }
+
+        static Color muted() {
+            return pick("Label.disabledForeground", new Color(0x6B, 0x72, 0x80));
+        }
+
+        private static Color pick(String key, Color fallback) {
+            Color c = UIManager.getColor(key);
+            return c != null ? c : fallback;
+        }
 
         static Font font(int size) {
             return new Font("Microsoft YaHei UI", Font.PLAIN, size);
@@ -1116,80 +1137,213 @@ public class YuciCom {
         }
     }
 
-    /** 扁平按钮：primary 走实心强调色，其余是白底细描边；都有 hover / 按下态。 */
-    static class FlatButton extends JButton {
+    /** 自绘矢量图标：不依赖图片文件，颜色跟着当前主题的文字色走。 */
+    static final class Icons {
 
-        private final boolean primary;
-        private boolean over, down;
-
-        FlatButton(String text, boolean primary) {
-            super(text);
-            this.primary = primary;
-            setFont(Ui.font(12));
-            setForeground(primary ? Color.WHITE : Ui.TEXT);
-            setFocusPainted(false);
-            setBorderPainted(false);
-            setContentAreaFilled(false);
-            setOpaque(false);
-            setRolloverEnabled(true);
-            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            setBorder(new EmptyBorder(5, 14, 5, 14));
-            addMouseListener(new java.awt.event.MouseAdapter() {
+        static Icon of(String name) {
+            return new Icon() {
                 @Override
-                public void mouseEntered(java.awt.event.MouseEvent e) {
-                    over = true;
-                    repaint();
+                public void paintIcon(Component c, Graphics g, int x, int y) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.translate(x, y);
+                    g2.scale(20 / 24.0, 20 / 24.0);
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                            RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL,
+                            RenderingHints.VALUE_STROKE_PURE);
+                    Color base = UIManager.getColor("Label.foreground");
+                    if (base == null) base = new Color(0x33, 0x33, 0x33);
+                    g2.setColor(base);
+                    g2.setStroke(new BasicStroke(1.9f, BasicStroke.CAP_ROUND,
+                            BasicStroke.JOIN_ROUND));
+                    draw(g2, name);
+                    g2.dispose();
                 }
 
                 @Override
-                public void mouseExited(java.awt.event.MouseEvent e) {
-                    over = false;
-                    down = false;
-                    repaint();
+                public int getIconWidth() {
+                    return 20;
                 }
 
                 @Override
-                public void mousePressed(java.awt.event.MouseEvent e) {
-                    if (isEnabled()) {
-                        down = true;
-                        repaint();
-                    }
+                public int getIconHeight() {
+                    return 20;
                 }
-
-                @Override
-                public void mouseReleased(java.awt.event.MouseEvent e) {
-                    down = false;
-                    repaint();
-                }
-            });
+            };
         }
 
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-            int w = getWidth(), h = getHeight();
-            Color fill;
-            if (!isEnabled()) {
-                fill = primary ? new Color(0xC2, 0xD3, 0xF5) : new Color(0xF4, 0xF5, 0xF7);
-            } else if (primary) {
-                fill = down ? Ui.PRIMARY_DOWN : (over ? Ui.PRIMARY_HOVER : Ui.PRIMARY);
-            } else {
-                fill = down ? new Color(0xE1, 0xE7, 0xF1) : (over ? Ui.HOVER : Ui.SURFACE);
+        private static void draw(Graphics2D g, String n) {
+            switch (n) {
+                case "save":
+                    g.drawLine(12, 3, 12, 14);
+                    g.drawLine(7, 9, 12, 14);
+                    g.drawLine(17, 9, 12, 14);
+                    g.drawLine(4, 17, 4, 20);
+                    g.drawLine(4, 20, 20, 20);
+                    g.drawLine(20, 20, 20, 17);
+                    break;
+                case "image":
+                    g.drawRoundRect(3, 5, 18, 14, 3, 3);
+                    g.drawOval(6, 8, 4, 4);
+                    g.drawLine(4, 18, 9, 13);
+                    g.drawLine(9, 13, 14, 18);
+                    g.drawLine(13, 16, 16, 13);
+                    g.drawLine(16, 13, 20, 17);
+                    break;
+                case "export":
+                    g.drawRoundRect(3, 4, 18, 16, 2, 2);
+                    g.drawLine(3, 10, 21, 10);
+                    g.drawLine(3, 15, 21, 15);
+                    g.drawLine(9, 4, 9, 20);
+                    g.drawLine(15, 4, 15, 20);
+                    break;
+                case "chart":
+                    g.drawLine(3, 20, 21, 20);
+                    g.drawLine(6, 15, 10, 10);
+                    g.drawLine(10, 10, 13, 14);
+                    g.drawLine(13, 14, 18, 5);
+                    break;
+                case "script":
+                    g.drawLine(9, 6, 4, 12);
+                    g.drawLine(4, 12, 9, 18);
+                    g.drawLine(15, 6, 20, 12);
+                    g.drawLine(20, 12, 15, 18);
+                    break;
+                case "frame":
+                    g.drawRoundRect(3, 7, 18, 10, 2, 2);
+                    g.drawLine(8, 7, 8, 17);
+                    g.drawLine(16, 7, 16, 17);
+                    break;
+                case "crc":
+                    Path2D.Double shield = new Path2D.Double();
+                    shield.moveTo(12, 3);
+                    shield.lineTo(20, 6);
+                    shield.lineTo(20, 12);
+                    shield.lineTo(12, 21);
+                    shield.lineTo(4, 12);
+                    shield.lineTo(4, 6);
+                    shield.closePath();
+                    g.draw(shield);
+                    g.drawLine(8, 12, 11, 15);
+                    g.drawLine(11, 15, 16, 9);
+                    break;
+                case "stats":
+                    g.drawLine(3, 21, 21, 21);
+                    g.fillRoundRect(5, 12, 3, 8, 1, 1);
+                    g.fillRoundRect(11, 7, 3, 13, 1, 1);
+                    g.fillRoundRect(17, 15, 3, 5, 1, 1);
+                    break;
+                case "trash":
+                    g.drawLine(4, 7, 20, 7);
+                    g.drawLine(9, 7, 9, 4);
+                    g.drawLine(9, 4, 15, 4);
+                    g.drawLine(15, 4, 15, 7);
+                    g.drawLine(6, 7, 7, 21);
+                    g.drawLine(7, 21, 17, 21);
+                    g.drawLine(17, 21, 18, 7);
+                    break;
+                case "gear":
+                    g.drawOval(8, 8, 8, 8);
+                    for (int i = 0; i < 8; i++) {
+                        double a = Math.PI * i / 4;
+                        int x1 = (int) Math.round(12 + Math.cos(a) * 8);
+                        int y1 = (int) Math.round(12 + Math.sin(a) * 8);
+                        int x2 = (int) Math.round(12 + Math.cos(a) * 10.5);
+                        int y2 = (int) Math.round(12 + Math.sin(a) * 10.5);
+                        g.drawLine(x1, y1, x2, y2);
+                    }
+                    break;
+                default:
+                    break;
             }
-            g2.setColor(fill);
-            g2.fillRoundRect(0, 0, w - 1, h - 1, 8, 8);
-            if (!primary) {
-                g2.setColor(isEnabled() ? Ui.BORDER : new Color(0xEE, 0xF0, 0xF3));
-                g2.drawRoundRect(0, 0, w - 1, h - 1, 8, 8);
-            }
-            g2.dispose();
-            super.paintComponent(g);
         }
     }
 
-    /** 圆角浅色分组面板，用来把一排控件圈成一块，别让它们糊成一片。 */
+    /** 接收区固定深色（终端就该这样），不受浅色主题影响。 */
+    static final Color RX_BG = new Color(0x1E, 0x1E, 0x1E);
+    static final Color RX_FG = new Color(0xE6, 0xE6, 0xE6);
+
+    /**
+     * 切换浅色 / 深色。FlatLaf 会重建所有窗口的 UI 委托，
+     * 所以这里只管主题本身，具体控件不用逐个调。
+     */
+    static void applyTheme(boolean dark) {
+        try {
+            if (dark) com.formdev.flatlaf.FlatDarkLaf.setup();
+            else com.formdev.flatlaf.FlatLightLaf.setup();
+            UIManager.put("defaultFont", new Font("Microsoft YaHei UI", Font.PLAIN, 12));
+            UIManager.put("Component.arc", 10);
+            UIManager.put("Button.arc", 10);
+            UIManager.put("TextComponent.arc", 8);
+            UIManager.put("ScrollBar.width", 12);
+            UIManager.put("ScrollBar.thumbArc", 999);
+            UIManager.put("ScrollBar.thumbInsets", new Insets(2, 2, 2, 2));
+            UIManager.put("TabbedPane.showTabSeparators", false);
+            /* 工具栏图标按钮的悬停/按下底色：FlatLaf 默认那档太淡，看着像没反应 */
+            UIManager.put("Button.toolbar.hoverBackground",
+                    dark ? new Color(0x36, 0x3A, 0x40) : new Color(0xE4, 0xE8, 0xEF));
+            UIManager.put("Button.toolbar.pressedBackground",
+                    dark ? new Color(0x42, 0x47, 0x4E) : new Color(0xD8, 0xDE, 0xE7));
+            ToolTipManager.sharedInstance().setInitialDelay(220);
+            ToolTipManager.sharedInstance().setReshowDelay(60);
+            ToolTipManager.sharedInstance().setDismissDelay(12000);
+            Config.put("ui.dark", dark);
+            for (Window w : Window.getWindows()) {
+                SwingUtilities.updateComponentTreeUI(w);
+                restoreRxColors(w);
+                w.validate();
+                w.repaint();
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private static void restoreRxColors(Component c) {
+        if (c instanceof BgTextPane) {
+            BgTextPane p = (BgTextPane) c;
+            p.setBackground(RX_BG);
+            p.setForeground(RX_FG);
+            p.setCaretColor(RX_FG);
+        }
+        if (c instanceof Container) {
+            for (Component k : ((Container) c).getComponents()) restoreRxColors(k);
+        }
+    }
+
+    /** 按钮：外观交给 FlatLaf，primary 只是换个底色，不再自己画。 */
+    static class FlatButton extends JButton {
+
+        FlatButton(String text, boolean primary) {
+            super(text);
+            setFont(Ui.font(12));
+            putClientProperty("JButton.buttonType", "roundRect");
+            if (primary) {
+                setBackground(Ui.PRIMARY);
+                setForeground(Color.WHITE);
+            }
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            setBorder(new EmptyBorder(5, 14, 5, 14));
+        }
+    }
+
+    /** 侧栏图标按钮：只显示图标，靠 tooltip 说明，hover 有底色。 */
+    static class IconButton extends JButton {
+
+        IconButton(String tooltip, String icon) {
+            super(Icons.of(icon));
+            setToolTipText(tooltip);
+            Dimension d = new Dimension(34, 34);
+            setPreferredSize(d);
+            setMinimumSize(d);
+            setMaximumSize(d);
+            setFocusPainted(false);
+            setAlignmentX(Component.CENTER_ALIGNMENT);
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            putClientProperty("JButton.buttonType", "toolBarButton");
+        }
+    }
+
+    /** 分组面板：只画一圈圆角细边，不填充，深浅主题都不会突兀。 */
     static class GroupPanel extends JPanel {
 
         GroupPanel(LayoutManager lm) {
@@ -1202,83 +1356,10 @@ public class YuciCom {
         protected void paintComponent(Graphics g) {
             Graphics2D g2 = (Graphics2D) g.create();
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(Ui.PANEL);
-            g2.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
-            g2.setColor(Ui.BORDER);
-            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
+            g2.setColor(Ui.border());
+            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 12, 12);
             g2.dispose();
             super.paintComponent(g);
-        }
-    }
-
-    /** 扁平标签页：选中项白底 + 底部一条强调色，未选中透明灰字。 */
-    static final class FlatTabbedPaneUI extends javax.swing.plaf.basic.BasicTabbedPaneUI {
-
-        private final Color areaBg;
-
-        FlatTabbedPaneUI(Color areaBg) {
-            this.areaBg = areaBg;
-        }
-
-        @Override
-        protected void installDefaults() {
-            super.installDefaults();
-            tabAreaInsets = new Insets(6, 10, 0, 10);
-            tabInsets = new Insets(6, 14, 7, 14);
-            selectedTabPadInsets = new Insets(0, 0, 0, 0);
-            contentBorderInsets = new Insets(0, 0, 0, 0);
-        }
-
-        @Override
-        protected void paintTabArea(Graphics g, int place, int sel) {
-            Rectangle clip = g.getClipBounds();
-            if (clip != null) {
-                g.setColor(areaBg);
-                g.fillRect(clip.x, clip.y, clip.width, clip.height);
-            }
-            super.paintTabArea(g, place, sel);
-        }
-
-        @Override
-        protected void paintTabBackground(Graphics g, int place, int index,
-                                          int x, int y, int w, int h, boolean selected) {
-            if (!selected) return;
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(new Color(0xEC, 0xF2, 0xFE));
-            g2.fillRoundRect(x + 1, y + 2, w - 2, h - 3, 9, 9);
-            g2.dispose();
-        }
-
-        @Override
-        protected void paintTabBorder(Graphics g, int place, int index,
-                                      int x, int y, int w, int h, boolean selected) {
-            if (!selected) return;
-            Graphics2D g2 = (Graphics2D) g.create();
-            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2.setColor(Ui.PRIMARY);
-            g2.setStroke(new BasicStroke(2.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            g2.drawLine(x + 11, y + h - 2, x + w - 11, y + h - 2);
-            g2.dispose();
-        }
-
-        @Override
-        protected void paintContentBorder(Graphics g, int place, int sel) {
-        }
-
-        @Override
-        protected void paintFocusIndicator(Graphics g, int place, Rectangle[] rects,
-                                           int index, Rectangle icon, Rectangle text, boolean sel) {
-        }
-
-        @Override
-        protected void paintText(Graphics g, int place, Font font, FontMetrics m,
-                                 int index, String text, Rectangle rect, boolean selected) {
-            g.setColor(selected ? Ui.TEXT : Ui.MUTED);
-            g.setFont(selected ? Ui.bold(12) : Ui.font(12));
-            int x = rect.x + (rect.width - m.stringWidth(text)) / 2;
-            int y = rect.y + (rect.height + m.getAscent() - m.getDescent()) / 2;
-            g.drawString(text, x, y);
         }
     }
 
@@ -1286,17 +1367,7 @@ public class YuciCom {
 
     static final class Gui {
         static void start() {
-            try {
-                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-                UIManager.put("TextField.font", new Font("Microsoft YaHei UI", Font.PLAIN, 12));
-                UIManager.put("ComboBox.font", new Font("Microsoft YaHei UI", Font.PLAIN, 12));
-                UIManager.put("Label.font", new Font("Microsoft YaHei UI", Font.PLAIN, 12));
-                UIManager.put("CheckBox.font", new Font("Microsoft YaHei UI", Font.PLAIN, 12));
-                UIManager.put("Button.font", new Font("Microsoft YaHei UI", Font.PLAIN, 12));
-                UIManager.put("Menu.font", new Font("Microsoft YaHei UI", Font.PLAIN, 12));
-                UIManager.put("MenuItem.font", new Font("Microsoft YaHei UI", Font.PLAIN, 12));
-            } catch (Exception ignored) {
-            }
+            applyTheme(Config.getBool("ui.dark", true));
             SwingUtilities.invokeLater(() -> new AppFrame().setVisible(true));
         }
     }
@@ -1445,7 +1516,7 @@ public class YuciCom {
         /* ---------- 样式与皮肤 ---------- */
 
         private void initStyles() {
-            setBackground(Ui.BG);
+            setBackground(Ui.surface());
             StyleConstants.setForeground(stRx, new Color(0xE6, 0xE6, 0xE6));
             StyleConstants.setForeground(stTx, new Color(0x6C, 0xB6, 0xF0));
             StyleConstants.setForeground(stSys, new Color(0x9E, 0xA6, 0xB2));
@@ -1549,91 +1620,164 @@ public class YuciCom {
         private void buildUi() {
             setLayout(new BorderLayout());
 
-            JPanel north = new JPanel(new BorderLayout());
-            north.add(buildPortBar(), BorderLayout.NORTH);
-            north.add(buildRxToolbar(), BorderLayout.SOUTH);
-            add(north, BorderLayout.NORTH);
+            add(buildTopBar(), BorderLayout.NORTH);
 
             JPanel send = buildSendPanel();
             send.setMinimumSize(new Dimension(120, 130));
-
             mainSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, buildCenter(), send);
             mainSplit.setResizeWeight(1.0);
             mainSplit.setDividerSize(6);
             mainSplit.setBorder(null);
-            add(mainSplit, BorderLayout.CENTER);
+
+            JPanel center = new JPanel(new BorderLayout());
+            center.add(mainSplit, BorderLayout.CENTER);
+            center.add(buildRail(), BorderLayout.WEST);
+            add(center, BorderLayout.CENTER);
 
             wireActions();
-            SwingUtilities.invokeLater(() -> mainSplit.setDividerLocation(0.66));
+            SwingUtilities.invokeLater(() -> mainSplit.setDividerLocation(0.72));
         }
 
-        private JComponent buildPortBar() {
-            JPanel wrap = new JPanel(new BorderLayout(0, 9));
-            wrap.setBackground(Ui.SURFACE);
-            wrap.setBorder(new EmptyBorder(10, 12, 10, 12));
+        /** 顶部只留一行：选口、波特率、打开、几个显示开关。其余收进齿轮和右侧栏。 */
+        private JComponent buildTopBar() {
+            JPanel bar = new JPanel(new BorderLayout(8, 0));
+            bar.setBackground(Ui.surface());
+            bar.setBorder(new javax.swing.border.CompoundBorder(
+                    new LineBorder(1), new EmptyBorder(5, 10, 5, 10)));
 
-            /* 第一行：选口 + 主操作 + 控制线 */
-            JPanel r1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-            r1.setOpaque(false);
-            r1.add(tag("串口"));
-            cbPort.setPreferredSize(new Dimension(310, 30));
+            JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+            left.setOpaque(false);
+            cbPort.setPreferredSize(new Dimension(272, 32));
             cbPort.setFont(Ui.font(12));
-            r1.add(cbPort);
-            btnRefresh.setPreferredSize(new Dimension(68, 32));
-            r1.add(btnRefresh);
-            r1.add(btnOpen);
-            r1.add(vline());
-            r1.add(chkDtr);
-            r1.add(chkRts);
-            wrap.add(r1, BorderLayout.NORTH);
-
-            /* 第二行：串口参数，圈成一块浅色圆角，两段用竖线隔开 */
-            JPanel p1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 7, 0));
-            p1.setOpaque(false);
+            cbPort.setToolTipText("串口");
+            left.add(cbPort);
             cbBaud.setEditable(true);
-            p1.add(tag("波特率"));
             combo(cbBaud, 96);
-            p1.add(cbBaud);
-            p1.add(tag("数据位"));
-            combo(cbData, 56);
-            p1.add(cbData);
-            p1.add(tag("校验"));
-            combo(cbParity, 96);
-            p1.add(cbParity);
-            p1.add(tag("停止位"));
-            combo(cbStop, 60);
-            p1.add(cbStop);
-            p1.add(tag("流控"));
-            combo(cbFlow, 120);
-            p1.add(cbFlow);
+            cbBaud.setToolTipText("波特率（可直接输入）");
+            left.add(cbBaud);
+            btnRefresh.setPreferredSize(new Dimension(64, 32));
+            left.add(btnRefresh);
+            left.add(btnOpen);
+            left.add(vline());
+            left.add(chkHexView);
+            left.add(chkTimestamp);
+            left.add(chkPause);
+            left.add(chkAutoScroll);
 
-            JPanel p2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 7, 0));
-            p2.setOpaque(false);
-            p2.add(tag("编码"));
-            combo(cbEncoding, 96);
-            p2.add(cbEncoding);
-            p2.add(tag("断帧"));
-            combo(cbGap, 88);
-            cbGap.setToolTipText("超过该时间没有新数据，就认为一帧结束并换行显示");
-            p2.add(cbGap);
+            JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
+            right.setOpaque(false);
+            IconButton more = new IconButton("串口参数：数据位 / 校验 / 停止位 / 流控 / 编码 / 断帧", "gear");
+            more.addActionListener(e -> showMoreParams(more));
+            right.add(more);
 
-            JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-            row.setOpaque(false);
-            row.add(p1);
-            row.add(vline());
-            row.add(p2);
+            bar.add(left, BorderLayout.WEST);
+            bar.add(right, BorderLayout.EAST);
+            return bar;
+        }
 
-            GroupPanel gp = new GroupPanel(new BorderLayout());
-            gp.setBorder(new EmptyBorder(5, 6, 5, 6));
-            gp.add(row, BorderLayout.WEST);
-            wrap.add(gp, BorderLayout.CENTER);
-            return wrap;
+        private JPopupMenu moreParams;
+
+        private void showMoreParams(JComponent invoker) {
+            if (moreParams == null) {
+                moreParams = new JPopupMenu();
+                JPanel p = new JPanel(new GridBagLayout());
+                p.setBackground(Ui.surface());
+                p.setBorder(new EmptyBorder(10, 12, 10, 12));
+                GridBagConstraints c = new GridBagConstraints();
+                c.insets = new Insets(4, 4, 4, 4);
+                c.anchor = GridBagConstraints.WEST;
+                c.fill = GridBagConstraints.HORIZONTAL;
+                combo(cbData, 74);
+                combo(cbParity, 112);
+                combo(cbStop, 76);
+                combo(cbFlow, 136);
+                combo(cbEncoding, 112);
+                combo(cbGap, 100);
+                cbGap.setToolTipText("超过该时间没有新数据，就认为一帧结束并换行显示");
+                String[] names = {"数据位", "校验", "停止位", "流控", "编码", "断帧"};
+                JComboBox<?>[] boxes = {cbData, cbParity, cbStop, cbFlow, cbEncoding, cbGap};
+                for (int i = 0; i < names.length; i++) {
+                    c.gridx = 0;
+                    c.gridy = i;
+                    p.add(tag(names[i]), c);
+                    c.gridx = 1;
+                    p.add(boxes[i], c);
+                }
+                moreParams.add(p);
+            }
+            moreParams.show(invoker, -150, invoker.getHeight() + 4);
+        }
+
+        /** 右侧图标栏：接收侧操作 + 工具，全部图标化，省掉一整行文字按钮。 */
+        private JComponent buildRail() {
+            JPanel rail = new JPanel();
+            rail.setLayout(new BoxLayout(rail, BoxLayout.Y_AXIS));
+            rail.setBackground(Ui.surface());
+            rail.setBorder(new javax.swing.border.CompoundBorder(
+                    new LineBorder(3), new EmptyBorder(6, 2, 6, 2)));
+
+            rail.add(railBtn("保存接收日志（Ctrl+S）", "save", e -> saveLog()));
+            rail.add(railBtn("导出 CSV / Excel", "export", e -> showExportMenu((Component) e.getSource())));
+            rail.add(railBtn("接收区背景图", "image", e -> chooseBackground()));
+            rail.add(gap(6));
+            rail.add(railSep());
+            rail.add(gap(6));
+            rail.add(railBtn("数据曲线图（Ctrl+Shift+G）", "chart", e -> openChart()));
+            rail.add(railBtn("脚本发送（Ctrl+Shift+S）", "script", e -> openScript()));
+            rail.add(gap(6));
+            rail.add(railSep());
+            rail.add(gap(6));
+            rail.add(railBtn("协议组包（Ctrl+G）", "frame", e -> openFrameDialog()));
+            rail.add(railBtn("CRC / 校验（Ctrl+K）", "crc", e -> openCrcDialog()));
+            rail.add(railBtn("数据统计（Ctrl+Shift+T）", "stats", e -> openStats()));
+            rail.add(Box.createVerticalGlue());
+            rail.add(railSep());
+            rail.add(gap(6));
+            rail.add(railBtn("清空接收区（Ctrl+L）", "trash", e -> clearRx()));
+            return rail;
+        }
+
+        private JButton railBtn(String tip, String icon, java.awt.event.ActionListener l) {
+            IconButton b = new IconButton(tip, icon);
+            b.addActionListener(l);
+            return b;
+        }
+
+        private Component gap(int h) {
+            return Box.createVerticalStrut(h);
+        }
+
+        private Component railSep() {
+            JPanel p = new JPanel() {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    g.setColor(Ui.border());
+                    g.fillRect(6, 0, Math.max(0, getWidth() - 12), 1);
+                }
+            };
+            p.setOpaque(false);
+            p.setPreferredSize(new Dimension(34, 1));
+            p.setMinimumSize(new Dimension(34, 1));
+            p.setMaximumSize(new Dimension(34, 1));
+            p.setAlignmentX(Component.CENTER_ALIGNMENT);
+            return p;
+        }
+
+        private void showExportMenu(Component invoker) {
+            JPopupMenu pm = new JPopupMenu();
+            JMenuItem c = new JMenuItem("导出为 CSV 表格…");
+            c.addActionListener(e -> exportData(false));
+            JMenuItem x = new JMenuItem("导出为 Excel 工作簿…");
+            x.addActionListener(e -> exportData(true));
+            pm.add(c);
+            pm.add(x);
+            pm.show(invoker, -pm.getPreferredSize().width + 40, invoker.getHeight() + 2);
         }
 
         private JLabel tag(String s) {
             JLabel l = new JLabel(s);
             l.setFont(Ui.font(12));
-            l.setForeground(Ui.MUTED);
+            l.setForeground(Ui.muted());
             return l;
         }
 
@@ -1642,41 +1786,22 @@ public class YuciCom {
             return "<html><font color='" + color + "'>&#9679;</font>&nbsp; ";
         }
 
-        private JComponent vline() {
+        private Component vline() {
             JPanel p = new JPanel() {
                 @Override
                 protected void paintComponent(Graphics g) {
-                    g.setColor(Ui.BORDER);
-                    g.fillRect(getWidth() / 2, 3, 1, Math.max(0, getHeight() - 6));
+                    g.setColor(Ui.border());
+                    g.fillRect(getWidth() / 2, 4, 1, Math.max(0, getHeight() - 8));
                 }
             };
             p.setOpaque(false);
-            p.setPreferredSize(new Dimension(9, 20));
+            p.setPreferredSize(new Dimension(9, 22));
             return p;
         }
 
         private void combo(JComboBox<?> cb, int w) {
-            cb.setPreferredSize(new Dimension(w, 30));
+            cb.setPreferredSize(new Dimension(w, 32));
             cb.setFont(Ui.font(12));
-            cb.setBackground(Ui.SURFACE);
-        }
-
-        private JPanel buildRxToolbar() {
-            JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 6));
-            p.setBackground(Ui.SURFACE);
-            p.setBorder(new MatteBorderTop());
-            p.add(chkHexView);
-            p.add(chkTimestamp);
-            p.add(chkPause);
-            p.add(chkAutoScroll);
-            p.add(vline());
-            btnClear.setPreferredSize(new Dimension(64, 30));
-            btnSaveLog.setPreferredSize(new Dimension(88, 30));
-            btnBg.setPreferredSize(new Dimension(74, 30));
-            p.add(btnClear);
-            p.add(btnSaveLog);
-            p.add(btnBg);
-            return p;
         }
 
         private JComponent buildCenter() {
@@ -1686,13 +1811,13 @@ public class YuciCom {
 
         private JPanel buildSendPanel() {
             JPanel outer = new JPanel(new BorderLayout(0, 0));
-            outer.setBorder(new MatteBorderTop());
+            outer.setBorder(new LineBorder(0));
 
             /* --- 手工发送页 --- */
             JPanel manual = new JPanel(new BorderLayout(0, 0));
 
             JPanel bar = new JPanel(new BorderLayout());
-            bar.setBackground(Ui.SURFACE);
+            bar.setBackground(Ui.surface());
             bar.setBorder(new EmptyBorder(6, 12, 6, 12));
 
             JPanel leftBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
@@ -1733,7 +1858,7 @@ public class YuciCom {
             sp.setBorder(new EmptyBorder(0, 0, 0, 0));
 
             JPanel bottom = new JPanel(new BorderLayout());
-            bottom.setBackground(Ui.SURFACE);
+            bottom.setBackground(Ui.surface());
             bottom.setBorder(new EmptyBorder(2, 12, 8, 12));
             bottom.add(sp, BorderLayout.CENTER);
 
@@ -1749,10 +1874,10 @@ public class YuciCom {
             sendTabs = new JTabbedPane(JTabbedPane.TOP, JTabbedPane.SCROLL_TAB_LAYOUT);
             sendTabs.addTab("手工发送", manual);
             sendTabs.addTab("快捷发送", quick);
-            sendTabs.setUI(new FlatTabbedPaneUI(Ui.SURFACE));
-            sendTabs.setBackground(Ui.SURFACE);
-            manual.setBackground(Ui.SURFACE);
-            quick.setBackground(Ui.SURFACE);
+            sendTabs.putClientProperty("JTabbedPane.tabType", "underline");
+            sendTabs.putClientProperty("JTabbedPane.tabHeight", 28);
+            manual.setBackground(Ui.surface());
+            quick.setBackground(Ui.surface());
             sendTabs.setPreferredSize(new Dimension(100, 196));
             sendTabs.setMinimumSize(new Dimension(100, 150));
 
@@ -1763,23 +1888,23 @@ public class YuciCom {
 
         private JPanel buildStatusBar() {
             JPanel p = new JPanel(new BorderLayout());
-            p.setBackground(Ui.SURFACE);
+            p.setBackground(Ui.surface());
             p.setBorder(new javax.swing.border.CompoundBorder(
-                    new MatteBorderTop(), new EmptyBorder(5, 12, 5, 12)));
+                    new LineBorder(0), new EmptyBorder(5, 12, 5, 12)));
 
             lblStatus.setFont(Ui.font(12));
-            lblStatus.setForeground(Ui.MUTED);
+            lblStatus.setForeground(Ui.muted());
             lblStatus.setText(dot("#9CA3AF") + "未连接</html>");
             p.add(lblStatus, BorderLayout.WEST);
 
             JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
             right.setOpaque(false);
             lblRate.setFont(Ui.font(12));
-            lblRate.setForeground(Ui.MUTED);
+            lblRate.setForeground(Ui.muted());
             lblSignals.setFont(Ui.font(12));
-            lblSignals.setForeground(Ui.MUTED);
+            lblSignals.setForeground(Ui.muted());
             lblCount.setFont(Ui.font(12));
-            lblCount.setForeground(Ui.TEXT);
+            lblCount.setForeground(Ui.text());
             right.add(lblRate);
             right.add(vline());
             right.add(lblSignals);
@@ -1791,7 +1916,7 @@ public class YuciCom {
 
         private JMenuBar buildMenu() {
             JMenuBar mb = new JMenuBar();
-            mb.setBackground(Ui.SURFACE);
+            mb.setBackground(Ui.surface());
             mb.setBorder(new EmptyBorder(5, 8, 5, 8));
 
             /* ---------------- 文件 ---------------- */
@@ -1953,6 +2078,10 @@ public class YuciCom {
             mView.add(item("放大字号  Ctrl+滚轮↑", e -> setFontSize(Math.min(32, fontSize + 1)), null));
             mView.add(item("缩小字号  Ctrl+滚轮↓", e -> setFontSize(Math.max(9, fontSize - 1)), null));
             mView.addSeparator();
+            JMenu mTheme = new JMenu("主题");
+            mTheme.add(item("深色", e -> applyTheme(true), null));
+            mTheme.add(item("浅色", e -> applyTheme(false), null));
+            mView.add(mTheme);
             mView.add(item("全屏切换", e -> toggleFullScreen(), ks(KeyEvent.VK_F11, 0)));
             mView.add(item("恢复默认布局", e -> resetLayout(), null));
             mb.add(mView);
@@ -3132,15 +3261,33 @@ public class YuciCom {
 
     /* 顶部分隔线 */
 
-    static final class MatteBorderTop extends EmptyBorder {
-        MatteBorderTop() {
-            super(1, 0, 0, 0);
+    /** 单侧 1px 分隔线，颜色跟着主题走。side: 0 上 / 1 下 / 2 左 / 3 右 */
+    static final class LineBorder extends EmptyBorder {
+
+        private final int side;
+
+        LineBorder(int side) {
+            super(side == 0 ? 1 : 0, side == 2 ? 1 : 0, side == 1 ? 1 : 0, side == 3 ? 1 : 0);
+            this.side = side;
         }
 
         @Override
         public void paintBorder(Component c, Graphics g, int x, int y, int w, int h) {
-            g.setColor(new Color(0xD8, 0xD8, 0xD8));
-            g.drawLine(x, y, x + w, y);
+            g.setColor(Ui.border());
+            switch (side) {
+                case 0:
+                    g.drawLine(x, y, x + w, y);
+                    break;
+                case 1:
+                    g.drawLine(x, y + h - 1, x + w, y + h - 1);
+                    break;
+                case 2:
+                    g.drawLine(x, y, x, y + h);
+                    break;
+                default:
+                    g.drawLine(x + w - 1, y, x + w - 1, y + h);
+                    break;
+            }
         }
     }
 
@@ -3517,16 +3664,16 @@ public class YuciCom {
             table.setFont(Ui.font(12));
             table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
             table.setSelectionBackground(new Color(0xDC, 0xE9, 0xFD));
-            table.setSelectionForeground(Ui.TEXT);
+            table.setSelectionForeground(Ui.text());
             table.setShowVerticalLines(false);
             table.setShowHorizontalLines(true);
             table.setGridColor(new Color(0xF0, 0xF2, 0xF5));
             table.setIntercellSpacing(new Dimension(0, 1));
-            table.setBackground(Ui.SURFACE);
+            table.setBackground(Ui.surface());
             table.getTableHeader().setReorderingAllowed(false);
             table.getTableHeader().setFont(Ui.font(12));
-            table.getTableHeader().setBackground(Ui.PANEL);
-            table.getTableHeader().setForeground(Ui.MUTED);
+            table.getTableHeader().setBackground(Ui.panel());
+            table.getTableHeader().setForeground(Ui.muted());
             table.getTableHeader().setPreferredSize(new Dimension(10, 28));
             table.getColumnModel().getColumn(0).setPreferredWidth(150);
             table.getColumnModel().getColumn(1).setPreferredWidth(60);
@@ -3805,7 +3952,7 @@ public class YuciCom {
             code.setTabSize(2);
             out.setFont(SessionPanel.monoZh(12));
             out.setEditable(false);
-            out.setBackground(new Color(0xF7, 0xF7, 0xF7));
+            setBackground(Ui.surface());
 
             JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
             btnRun.addActionListener(e -> run());
@@ -3820,27 +3967,27 @@ public class YuciCom {
             bar.add(btnSample);
             bar.add(btnClear);
             JPanel barWrap = new JPanel(new BorderLayout());
-            barWrap.setBackground(Ui.SURFACE);
+            barWrap.setBackground(Ui.surface());
             barWrap.setBorder(new EmptyBorder(6, 8, 2, 8));
             barWrap.add(bar, BorderLayout.WEST);
             add(barWrap, BorderLayout.NORTH);
 
             JPanel body = new JPanel(new BorderLayout());
-            body.setBackground(Ui.SURFACE);
+            body.setBackground(Ui.surface());
             body.setBorder(new EmptyBorder(4, 10, 0, 10));
             JLabel lbCode = new JLabel("脚本");
             lbCode.setFont(Ui.font(11));
-            lbCode.setForeground(Ui.MUTED);
+            lbCode.setForeground(Ui.muted());
             lbCode.setBorder(new EmptyBorder(0, 0, 4, 0));
             body.add(lbCode, BorderLayout.NORTH);
             body.add(new JScrollPane(code), BorderLayout.CENTER);
 
             JPanel bottom = new JPanel(new BorderLayout());
-            bottom.setBackground(Ui.SURFACE);
+            bottom.setBackground(Ui.surface());
             bottom.setBorder(new EmptyBorder(2, 10, 0, 10));
             JLabel lbOut = new JLabel("输出");
             lbOut.setFont(Ui.font(11));
-            lbOut.setForeground(Ui.MUTED);
+            lbOut.setForeground(Ui.muted());
             lbOut.setBorder(new EmptyBorder(0, 0, 4, 0));
             bottom.add(lbOut, BorderLayout.NORTH);
             bottom.add(new JScrollPane(out), BorderLayout.CENTER);
@@ -3854,10 +4001,10 @@ public class YuciCom {
             JLabel hint = new JLabel(" 可用函数：send / send_line / send_hex / delay / print / is_open"
                     + "      沙箱里没有 io / os / require");
             hint.setFont(Ui.font(11));
-            hint.setForeground(Ui.MUTED);
+            hint.setForeground(Ui.muted());
             hint.setBorder(new EmptyBorder(6, 10, 6, 10));
             add(hint, BorderLayout.SOUTH);
-            getContentPane().setBackground(Ui.SURFACE);
+            getContentPane().setBackground(Ui.surface());
 
             addWindowListener(new WindowAdapter() {
                 @Override
@@ -4036,17 +4183,20 @@ public class YuciCom {
             setMinimumSize(new Dimension(920, 640));
             setSize(1120, 780);
             setLocationRelativeTo(null);
-            try {
-                java.net.URL ico = AppFrame.class.getResource("/icon.png");
-                if (ico != null) setIconImage(Toolkit.getDefaultToolkit().getImage(ico));
+            /* 用 ImageIO 同步读流：Toolkit.getImage(URL) 对 jar 内的图片是异步的，
+               在 jpackage 的 app-image 里经常拿不到，任务栏就会退成默认图标 */
+            try (InputStream in = AppFrame.class.getResourceAsStream("/icon.png")) {
+                if (in != null) {
+                    java.awt.image.BufferedImage src = javax.imageio.ImageIO.read(in);
+                    if (src != null) setIconImages(scaleIcons(src));
+                }
             } catch (Exception ignored) {
             }
 
             tabs.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
-            tabs.setUI(new FlatTabbedPaneUI(Ui.SURFACE));
-            tabs.setBackground(Ui.BG);
-            tabs.setOpaque(true);
-            getContentPane().setBackground(Ui.BG);
+            tabs.putClientProperty("JTabbedPane.tabType", "underline");
+            tabs.putClientProperty("JTabbedPane.tabHeight", 30);
+            getContentPane().setBackground(Ui.surface());
             tabs.addChangeListener(e -> syncMenu());
             tabs.addMouseListener(new java.awt.event.MouseAdapter() {
                 @Override
@@ -4134,6 +4284,15 @@ public class YuciCom {
             }
             dispose();
             System.exit(0);
+        }
+
+        /** 生成多个尺寸的图标：任务栏、标题栏、Alt+Tab 各取所需，不会糊。 */
+        private static java.util.List<Image> scaleIcons(java.awt.image.BufferedImage src) {
+            java.util.List<Image> out = new ArrayList<>();
+            for (int s : new int[]{16, 20, 24, 32, 40, 48, 64, 128, 256}) {
+                out.add(src.getScaledInstance(s, s, Image.SCALE_SMOOTH));
+            }
+            return out;
         }
     }
 

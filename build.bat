@@ -21,6 +21,7 @@ if not defined JDK (
 
 set "JSC=%ROOT%\lib\jSerialComm-2.11.4.jar"
 set "LUAJ=%ROOT%\lib\luaj-jse-3.0.1.jar"
+set "FLATLAF=%ROOT%\lib\flatlaf-3.5.4.jar"
 set "SRC=%ROOT%\src\YuciCom.java"
 set "BUILD=%ROOT%\build"
 
@@ -36,6 +37,10 @@ if not exist "%LUAJ%" (
   echo [ERROR] missing "%LUAJ%"
   exit /b 1
 )
+if not exist "%FLATLAF%" (
+  echo [ERROR] missing "%FLATLAF%"
+  exit /b 1
+)
 
 echo [1/5] clean
 if exist "%BUILD%" rmdir /s /q "%BUILD%"
@@ -43,7 +48,7 @@ mkdir "%BUILD%\classes" 2>nul
 mkdir "%BUILD%\jar" 2>nul
 
 echo [2/5] compile
-"%JDK%\bin\javac.exe" -encoding UTF-8 -nowarn -d "%BUILD%\classes" -cp "%JSC%;%LUAJ%" "%SRC%"
+"%JDK%\bin\javac.exe" -encoding UTF-8 -nowarn -d "%BUILD%\classes" -cp "%JSC%;%LUAJ%;%FLATLAF%" "%SRC%"
 if errorlevel 1 (
   echo [ERROR] compile failed
   exit /b 1
@@ -54,6 +59,8 @@ pushd "%BUILD%\classes"
 "%JDK%\bin\jar.exe" xf "%JSC%"
 if exist "META-INF\MANIFEST.MF" del /q "META-INF\MANIFEST.MF"
 "%JDK%\bin\jar.exe" xf "%LUAJ%"
+if exist "META-INF\MANIFEST.MF" del /q "META-INF\MANIFEST.MF"
+"%JDK%\bin\jar.exe" xf "%FLATLAF%"
 if exist "META-INF\MANIFEST.MF" del /q "META-INF\MANIFEST.MF"
 copy /y "%ROOT%\icon.png" "icon.png" >nul
 popd
