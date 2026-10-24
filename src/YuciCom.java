@@ -1154,7 +1154,7 @@ public class YuciCom {
                     Color base = UIManager.getColor("Label.foreground");
                     if (base == null) base = new Color(0x33, 0x33, 0x33);
                     g2.setColor(base);
-                    g2.setStroke(new BasicStroke(1.9f, BasicStroke.CAP_ROUND,
+                    g2.setStroke(new BasicStroke(2.1f, BasicStroke.CAP_ROUND,
                             BasicStroke.JOIN_ROUND));
                     draw(g2, name);
                     g2.dispose();
@@ -1175,87 +1175,88 @@ public class YuciCom {
         private static void draw(Graphics2D g, String n) {
             switch (n) {
                 case "save":
-                    g.drawLine(12, 3, 12, 14);
-                    g.drawLine(7, 9, 12, 14);
-                    g.drawLine(17, 9, 12, 14);
-                    g.drawLine(4, 17, 4, 20);
-                    g.drawLine(4, 20, 20, 20);
-                    g.drawLine(20, 20, 20, 17);
-                    break;
-                case "image":
-                    g.drawRoundRect(3, 5, 18, 14, 3, 3);
-                    g.drawOval(6, 8, 4, 4);
-                    g.drawLine(4, 18, 9, 13);
-                    g.drawLine(9, 13, 14, 18);
-                    g.drawLine(13, 16, 16, 13);
-                    g.drawLine(16, 13, 20, 17);
+                    /* 下载箭头 + 托盘 */
+                    line(g, 12, 3, 12, 15);
+                    poly(g, 7, 10, 12, 15, 17, 10);
+                    poly(g, 3, 15, 3, 19, 21, 19, 21, 15);
                     break;
                 case "export":
-                    g.drawRoundRect(3, 4, 18, 16, 2, 2);
-                    g.drawLine(3, 10, 21, 10);
-                    g.drawLine(3, 15, 21, 15);
-                    g.drawLine(9, 4, 9, 20);
-                    g.drawLine(15, 4, 15, 20);
+                    /* 表格 */
+                    g.drawRoundRect(3, 3, 18, 18, 2, 2);
+                    line(g, 3, 9, 21, 9);
+                    line(g, 3, 15, 21, 15);
+                    line(g, 9, 3, 9, 21);
+                    line(g, 15, 3, 15, 21);
+                    break;
+                case "image":
+                    /* 相框 + 太阳 + 山 */
+                    g.drawRoundRect(3, 3, 18, 18, 2, 2);
+                    g.drawOval(7, 7, 3, 3);
+                    poly(g, 21, 15, 16, 10, 5, 21);
                     break;
                 case "chart":
-                    g.drawLine(3, 20, 21, 20);
-                    g.drawLine(6, 15, 10, 10);
-                    g.drawLine(10, 10, 13, 14);
-                    g.drawLine(13, 14, 18, 5);
+                    /* 波形折线 */
+                    poly(g, 22, 12, 18, 12, 15, 21, 9, 3, 6, 12, 2, 12);
                     break;
                 case "script":
-                    g.drawLine(9, 6, 4, 12);
-                    g.drawLine(4, 12, 9, 18);
-                    g.drawLine(15, 6, 20, 12);
-                    g.drawLine(20, 12, 15, 18);
+                    /* </> */
+                    poly(g, 16, 18, 22, 12, 16, 6);
+                    poly(g, 8, 6, 2, 12, 8, 18);
                     break;
                 case "frame":
-                    g.drawRoundRect(3, 7, 18, 10, 2, 2);
-                    g.drawLine(8, 7, 8, 17);
-                    g.drawLine(16, 7, 16, 17);
+                    /* 分层：组包 */
+                    poly(g, 12, 2, 2, 7, 12, 12, 22, 7, 12, 2);
+                    poly(g, 2, 17, 12, 22, 22, 17);
+                    poly(g, 2, 12, 12, 17, 22, 12);
                     break;
                 case "crc":
-                    Path2D.Double shield = new Path2D.Double();
-                    shield.moveTo(12, 3);
-                    shield.lineTo(20, 6);
-                    shield.lineTo(20, 12);
-                    shield.lineTo(12, 21);
-                    shield.lineTo(4, 12);
-                    shield.lineTo(4, 6);
-                    shield.closePath();
-                    g.draw(shield);
-                    g.drawLine(8, 12, 11, 15);
-                    g.drawLine(11, 15, 16, 9);
+                    /* 圆圈 + 勾：校验通过 */
+                    g.drawOval(2, 2, 20, 20);
+                    poly(g, 7, 12, 11, 16, 17, 9);
                     break;
                 case "stats":
-                    g.drawLine(3, 21, 21, 21);
-                    g.fillRoundRect(5, 12, 3, 8, 1, 1);
-                    g.fillRoundRect(11, 7, 3, 13, 1, 1);
-                    g.fillRoundRect(17, 15, 3, 5, 1, 1);
+                    /* 柱状 */
+                    line(g, 18, 20, 18, 10);
+                    line(g, 12, 20, 12, 4);
+                    line(g, 6, 20, 6, 14);
                     break;
                 case "trash":
-                    g.drawLine(4, 7, 20, 7);
-                    g.drawLine(9, 7, 9, 4);
-                    g.drawLine(9, 4, 15, 4);
-                    g.drawLine(15, 4, 15, 7);
-                    g.drawLine(6, 7, 7, 21);
-                    g.drawLine(7, 21, 17, 21);
-                    g.drawLine(17, 21, 18, 7);
+                    /* 垃圾桶 */
+                    poly(g, 3, 6, 5, 6, 21, 6);
+                    poly(g, 5, 6, 5, 20, 19, 20, 19, 6);
+                    poly(g, 9, 6, 9, 3, 15, 3, 15, 6);
+                    line(g, 10, 11, 10, 17);
+                    line(g, 14, 11, 14, 17);
                     break;
                 case "gear":
-                    g.drawOval(8, 8, 8, 8);
-                    for (int i = 0; i < 8; i++) {
-                        double a = Math.PI * i / 4;
-                        int x1 = (int) Math.round(12 + Math.cos(a) * 8);
-                        int y1 = (int) Math.round(12 + Math.sin(a) * 8);
-                        int x2 = (int) Math.round(12 + Math.cos(a) * 10.5);
-                        int y2 = (int) Math.round(12 + Math.sin(a) * 10.5);
-                        g.drawLine(x1, y1, x2, y2);
-                    }
+                    /* 推子（三条滑轨）：参数调节。之前画成圆+放射线，像个太阳 */
+                    line(g, 4, 21, 4, 14);
+                    line(g, 4, 10, 4, 3);
+                    line(g, 12, 21, 12, 12);
+                    line(g, 12, 8, 12, 3);
+                    line(g, 20, 21, 20, 16);
+                    line(g, 20, 12, 20, 3);
+                    line(g, 1, 14, 7, 14);
+                    line(g, 9, 8, 15, 8);
+                    line(g, 17, 16, 23, 16);
                     break;
                 default:
                     break;
             }
+        }
+
+        private static void line(Graphics2D g, int x1, int y1, int x2, int y2) {
+            g.drawLine(x1, y1, x2, y2);
+        }
+
+        /** 折线/多边形，传入 x,y,x,y... */
+        private static void poly(Graphics2D g, int... p) {
+            Path2D.Double path = new Path2D.Double();
+            for (int i = 0; i + 1 < p.length; i += 2) {
+                if (i == 0) path.moveTo(p[i], p[i + 1]);
+                else path.lineTo(p[i], p[i + 1]);
+            }
+            g.draw(path);
         }
     }
 
@@ -1326,17 +1327,13 @@ public class YuciCom {
         }
     }
 
-    /** 侧栏按钮：图标在上、小字在下，光看图标认不出来的时候还有字。 */
+    /** 侧栏图标按钮：只有图标，含义靠 tooltip。 */
     static class IconButton extends JButton {
 
-        IconButton(String tooltip, String icon, String label) {
-            super(label, Icons.of(icon));
+        IconButton(String tooltip, String icon) {
+            super(Icons.of(icon));
             setToolTipText(tooltip);
-            setFont(Ui.font(10));
-            setVerticalTextPosition(SwingConstants.BOTTOM);
-            setHorizontalTextPosition(SwingConstants.CENTER);
-            setIconTextGap(1);
-            Dimension d = new Dimension(52, 46);
+            Dimension d = new Dimension(36, 36);
             setPreferredSize(d);
             setMinimumSize(d);
             setMaximumSize(d);
@@ -1671,14 +1668,10 @@ public class YuciCom {
             JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
             right.setOpaque(false);
             IconButton more = new IconButton(
-                    "串口参数：数据位 / 校验 / 停止位 / 流控 / 编码 / 断帧", "gear", "参数");
-            more.setVerticalTextPosition(SwingConstants.CENTER);
-            more.setHorizontalTextPosition(SwingConstants.RIGHT);
-            more.setFont(Ui.font(12));
-            more.setIconTextGap(5);
-            more.setPreferredSize(new Dimension(72, 32));
-            more.setMinimumSize(new Dimension(72, 32));
-            more.setMaximumSize(new Dimension(72, 32));
+                    "串口参数：数据位 / 校验 / 停止位 / 流控 / 编码 / 断帧", "gear");
+            more.setPreferredSize(new Dimension(36, 32));
+            more.setMinimumSize(new Dimension(36, 32));
+            more.setMaximumSize(new Dimension(36, 32));
             more.addActionListener(e -> showMoreParams(more));
             right.add(more);
 
@@ -1728,30 +1721,29 @@ public class YuciCom {
             rail.setBorder(new javax.swing.border.CompoundBorder(
                     new LineBorder(3), new EmptyBorder(6, 2, 6, 2)));
 
-            rail.add(railBtn("保存接收日志（Ctrl+S）", "save", "保存", e -> saveLog()));
-            rail.add(railBtn("导出 CSV / Excel", "export", "导出", e -> showExportMenu((Component) e.getSource())));
-            rail.add(railBtn("接收区背景图", "image", "背景", e -> chooseBackground()));
+            rail.add(railBtn("保存接收日志（Ctrl+S）", "save", e -> saveLog()));
+            rail.add(railBtn("导出 CSV / Excel", "export", e -> showExportMenu((Component) e.getSource())));
+            rail.add(railBtn("接收区背景图", "image", e -> chooseBackground()));
             rail.add(gap(6));
             rail.add(railSep());
             rail.add(gap(6));
-            rail.add(railBtn("数据曲线图（Ctrl+Shift+G）", "chart", "曲线", e -> openChart()));
-            rail.add(railBtn("脚本发送（Ctrl+Shift+S）", "script", "脚本", e -> openScript()));
+            rail.add(railBtn("数据曲线图（Ctrl+Shift+G）", "chart", e -> openChart()));
+            rail.add(railBtn("脚本发送（Ctrl+Shift+S）", "script", e -> openScript()));
             rail.add(gap(6));
             rail.add(railSep());
             rail.add(gap(6));
-            rail.add(railBtn("协议组包（Ctrl+G）", "frame", "组包", e -> openFrameDialog()));
-            rail.add(railBtn("CRC / 校验（Ctrl+K）", "crc", "校验", e -> openCrcDialog()));
-            rail.add(railBtn("数据统计（Ctrl+Shift+T）", "stats", "统计", e -> openStats()));
+            rail.add(railBtn("协议组包（Ctrl+G）", "frame", e -> openFrameDialog()));
+            rail.add(railBtn("CRC / 校验（Ctrl+K）", "crc", e -> openCrcDialog()));
+            rail.add(railBtn("数据统计（Ctrl+Shift+T）", "stats", e -> openStats()));
             rail.add(Box.createVerticalGlue());
             rail.add(railSep());
             rail.add(gap(6));
-            rail.add(railBtn("清空接收区（Ctrl+L）", "trash", "清空", e -> clearRx()));
+            rail.add(railBtn("清空接收区（Ctrl+L）", "trash", e -> clearRx()));
             return rail;
         }
 
-        private JButton railBtn(String tip, String icon, String label,
-                               java.awt.event.ActionListener l) {
-            IconButton b = new IconButton(tip, icon, label);
+        private JButton railBtn(String tip, String icon, java.awt.event.ActionListener l) {
+            IconButton b = new IconButton(tip, icon);
             b.addActionListener(l);
             return b;
         }
@@ -1765,13 +1757,13 @@ public class YuciCom {
                 @Override
                 protected void paintComponent(Graphics g) {
                     g.setColor(Ui.border());
-                    g.fillRect(8, 0, Math.max(0, getWidth() - 16), 1);
+                    g.fillRect(6, 0, Math.max(0, getWidth() - 12), 1);
                 }
             };
             p.setOpaque(false);
-            p.setPreferredSize(new Dimension(52, 1));
-            p.setMinimumSize(new Dimension(52, 1));
-            p.setMaximumSize(new Dimension(52, 1));
+            p.setPreferredSize(new Dimension(36, 1));
+            p.setMinimumSize(new Dimension(36, 1));
+            p.setMaximumSize(new Dimension(36, 1));
             p.setAlignmentX(Component.CENTER_ALIGNMENT);
             return p;
         }
