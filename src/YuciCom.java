@@ -1326,13 +1326,17 @@ public class YuciCom {
         }
     }
 
-    /** 侧栏图标按钮：只显示图标，靠 tooltip 说明，hover 有底色。 */
+    /** 侧栏按钮：图标在上、小字在下，光看图标认不出来的时候还有字。 */
     static class IconButton extends JButton {
 
-        IconButton(String tooltip, String icon) {
-            super(Icons.of(icon));
+        IconButton(String tooltip, String icon, String label) {
+            super(label, Icons.of(icon));
             setToolTipText(tooltip);
-            Dimension d = new Dimension(34, 34);
+            setFont(Ui.font(10));
+            setVerticalTextPosition(SwingConstants.BOTTOM);
+            setHorizontalTextPosition(SwingConstants.CENTER);
+            setIconTextGap(1);
+            Dimension d = new Dimension(52, 46);
             setPreferredSize(d);
             setMinimumSize(d);
             setMaximumSize(d);
@@ -1666,7 +1670,15 @@ public class YuciCom {
 
             JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
             right.setOpaque(false);
-            IconButton more = new IconButton("串口参数：数据位 / 校验 / 停止位 / 流控 / 编码 / 断帧", "gear");
+            IconButton more = new IconButton(
+                    "串口参数：数据位 / 校验 / 停止位 / 流控 / 编码 / 断帧", "gear", "参数");
+            more.setVerticalTextPosition(SwingConstants.CENTER);
+            more.setHorizontalTextPosition(SwingConstants.RIGHT);
+            more.setFont(Ui.font(12));
+            more.setIconTextGap(5);
+            more.setPreferredSize(new Dimension(72, 32));
+            more.setMinimumSize(new Dimension(72, 32));
+            more.setMaximumSize(new Dimension(72, 32));
             more.addActionListener(e -> showMoreParams(more));
             right.add(more);
 
@@ -1716,29 +1728,30 @@ public class YuciCom {
             rail.setBorder(new javax.swing.border.CompoundBorder(
                     new LineBorder(3), new EmptyBorder(6, 2, 6, 2)));
 
-            rail.add(railBtn("保存接收日志（Ctrl+S）", "save", e -> saveLog()));
-            rail.add(railBtn("导出 CSV / Excel", "export", e -> showExportMenu((Component) e.getSource())));
-            rail.add(railBtn("接收区背景图", "image", e -> chooseBackground()));
+            rail.add(railBtn("保存接收日志（Ctrl+S）", "save", "保存", e -> saveLog()));
+            rail.add(railBtn("导出 CSV / Excel", "export", "导出", e -> showExportMenu((Component) e.getSource())));
+            rail.add(railBtn("接收区背景图", "image", "背景", e -> chooseBackground()));
             rail.add(gap(6));
             rail.add(railSep());
             rail.add(gap(6));
-            rail.add(railBtn("数据曲线图（Ctrl+Shift+G）", "chart", e -> openChart()));
-            rail.add(railBtn("脚本发送（Ctrl+Shift+S）", "script", e -> openScript()));
+            rail.add(railBtn("数据曲线图（Ctrl+Shift+G）", "chart", "曲线", e -> openChart()));
+            rail.add(railBtn("脚本发送（Ctrl+Shift+S）", "script", "脚本", e -> openScript()));
             rail.add(gap(6));
             rail.add(railSep());
             rail.add(gap(6));
-            rail.add(railBtn("协议组包（Ctrl+G）", "frame", e -> openFrameDialog()));
-            rail.add(railBtn("CRC / 校验（Ctrl+K）", "crc", e -> openCrcDialog()));
-            rail.add(railBtn("数据统计（Ctrl+Shift+T）", "stats", e -> openStats()));
+            rail.add(railBtn("协议组包（Ctrl+G）", "frame", "组包", e -> openFrameDialog()));
+            rail.add(railBtn("CRC / 校验（Ctrl+K）", "crc", "校验", e -> openCrcDialog()));
+            rail.add(railBtn("数据统计（Ctrl+Shift+T）", "stats", "统计", e -> openStats()));
             rail.add(Box.createVerticalGlue());
             rail.add(railSep());
             rail.add(gap(6));
-            rail.add(railBtn("清空接收区（Ctrl+L）", "trash", e -> clearRx()));
+            rail.add(railBtn("清空接收区（Ctrl+L）", "trash", "清空", e -> clearRx()));
             return rail;
         }
 
-        private JButton railBtn(String tip, String icon, java.awt.event.ActionListener l) {
-            IconButton b = new IconButton(tip, icon);
+        private JButton railBtn(String tip, String icon, String label,
+                               java.awt.event.ActionListener l) {
+            IconButton b = new IconButton(tip, icon, label);
             b.addActionListener(l);
             return b;
         }
@@ -1752,13 +1765,13 @@ public class YuciCom {
                 @Override
                 protected void paintComponent(Graphics g) {
                     g.setColor(Ui.border());
-                    g.fillRect(6, 0, Math.max(0, getWidth() - 12), 1);
+                    g.fillRect(8, 0, Math.max(0, getWidth() - 16), 1);
                 }
             };
             p.setOpaque(false);
-            p.setPreferredSize(new Dimension(34, 1));
-            p.setMinimumSize(new Dimension(34, 1));
-            p.setMaximumSize(new Dimension(34, 1));
+            p.setPreferredSize(new Dimension(52, 1));
+            p.setMinimumSize(new Dimension(52, 1));
+            p.setMaximumSize(new Dimension(52, 1));
             p.setAlignmentX(Component.CENTER_ALIGNMENT);
             return p;
         }
