@@ -16,12 +16,14 @@ import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.geom.Path2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
@@ -45,6 +47,10 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 /**
  * yuci_com —— 串口调试助手（Java Swing + jSerialComm 原生版）
@@ -1192,6 +1198,11 @@ public class YuciCom {
         private JTabbedPane sendTabs;
         private JMenu bgRecentMenu;
 
+        /* --- 收发记录（导出 CSV / Excel 与画图共用） --- */
+        private static final int REC_MAX = 200_000;
+        private final ArrayDeque<Rec> recs = new ArrayDeque<>();
+        private ChartFrame chart;
+
         MainFrame() {
             super(APP + " " + VERSION + "  ·  串口调试助手");
             setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
@@ -1506,6 +1517,8 @@ public class YuciCom {
             mFile.add(item("打开接收日志…", e -> openLog(),
                     ks(KeyEvent.VK_O, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK)));
             mFile.add(item("保存接收日志…", e -> saveLog(), ks(KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK)));
+            mFile.add(item("导出接收数据 → CSV…", e -> exportData(false), null));
+            mFile.add(item("导出接收数据 → Excel…", e -> exportData(true), null));
             mFile.add(item("发送文件…", e -> sendFile(), null));
             mFile.addSeparator();
             mFile.add(item("导入配置…", e -> importConfig(), null));
@@ -1607,6 +1620,8 @@ public class YuciCom {
             mTool.add(item("快捷发送", e -> selectSendTab(1), ks(KeyEvent.VK_2, InputEvent.CTRL_DOWN_MASK)));
             mTool.addSeparator();
             mTool.add(item("数据统计…", e -> openStats(), ks(KeyEvent.VK_T, InputEvent.CTRL_DOWN_MASK)));
+            mTool.add(item("数据曲线图…", e -> openChart(),
+                    ks(KeyEvent.VK_G, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK)));
 
             JMenu mEnc = new JMenu("字符编码");
             for (String s : Enc.NAMES) mEnc.add(item(s, e -> cbEncoding.setSelectedItem(s)));
@@ -1984,11 +1999,17 @@ public class YuciCom {
                 if (i > 0 || crossTickGap) sb.append('\n');
                 if (chkTimestamp.isSelected()) sb.append(ts);
                 byte[] d = segs.get(i);
+                String plain;
                 if (chkHexView.isSelected()) {
                     sb.append(Hex.dump(d, hexCol));
+                    plain = Hex.of(d);
                 } else {
-                    sb.append(rxDec.decode(d).replace("\r\n", "\n").replace('\r', '\n'));
+                    plain = rxDec.decode(d).replace("\r\n", "\n").replace('\r', '\n');
+                    sb.append(plain);
                 }
+                record(false, System.currentTimeMillis(), d);
+                /* HEX 显示时喂进去的是一串十六进制，画图会误判，所以只在文本模式喂 */
+                if (chart != null && !chkHexView.isSelected()) chart.feed(plain);
             }
             append(sb.toString(), stRx);
         }
@@ -2054,6 +2075,107 @@ public class YuciCom {
             }
         }
 
+        /* ---------- 收发记录 / 导出 ---------- */
+
+        private void record(boolean tx, long t, byte[] d) {
+            synchronized (recs) {
+                recs.addLast(new Rec(t, tx, d));
+                while (recs.size() > REC_MAX) recs.removeFirst();
+            }
+        }
+
+        private static final DateTimeFormatter EXP_FMT = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
+
+        private void exportData(boolean excel) {
+            List<Rec> snap;
+            synchronized (recs) {
+                snap = new ArrayList<>(recs);
+            }
+            if (snap.isEmpty()) {
+                sys("还没有可导出的数据 —— 先收发一些再来");
+                return;
+            }
+            JFileChooser fc = new JFileChooser(lastDir);
+            String stamp = java.time.LocalDateTime.now()
+                    .format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+            fc.setSelectedFile(new File("yuci_com_" + stamp + (excel ? ".xlsx" : ".csv")));
+            fc.setFileFilter(excel
+                    ? new javax.swing.filechooser.FileNameExtensionFilter("Excel 工作簿 (*.xlsx)", "xlsx")
+                    : new javax.swing.filechooser.FileNameExtensionFilter("CSV 表格 (*.csv)", "csv"));
+            if (fc.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) return;
+            File f = fc.getSelectedFile();
+            lastDir = f.getParentFile();
+            String lower = f.getName().toLowerCase(Locale.ROOT);
+            if (excel && !lower.endsWith(".xlsx")) f = new File(f.getPath() + ".xlsx");
+            if (!excel && !lower.endsWith(".csv")) f = new File(f.getPath() + ".csv");
+
+            Charset cs = Enc.of((String) cbEncoding.getSelectedItem());
+            List<String[]> rows = new ArrayList<>(snap.size() + 1);
+            rows.add(new String[]{"时间", "方向", "字节", "文本", "HEX"});
+            for (Rec r : snap) {
+                rows.add(new String[]{
+                        EXP_FMT.format(java.time.Instant.ofEpochMilli(r.t)
+                                .atZone(java.time.ZoneId.systemDefault())),
+                        r.tx ? "TX" : "RX",
+                        Integer.toString(r.data.length),
+                        readable(r.data, cs),
+                        Hex.of(r.data)});
+            }
+            try {
+                if (excel) Xlsx.write(f, "收发记录", rows);
+                else Files.write(f.toPath(), csvBytes(rows));
+                sys("已导出 " + snap.size() + " 条记录到 " + f.getAbsolutePath());
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(this, "导出失败: " + e.getMessage(),
+                        APP, JOptionPane.ERROR_MESSAGE);
+            }
+        }
+
+        /** 把不可见控制字符转成字面量，免得表格里一片乱码。 */
+        static String readable(byte[] d, Charset cs) {
+            String s = new String(d, cs);
+            StringBuilder b = new StringBuilder(s.length() + 8);
+            for (int i = 0; i < s.length(); i++) {
+                char c = s.charAt(i);
+                if (c == '\r') b.append("\\r");
+                else if (c == '\n') b.append("\\n");
+                else if (c == '\t') b.append("\\t");
+                else if (c < 0x20 || c == 0x7f) b.append('.');
+                else b.append(c);
+            }
+            return b.toString();
+        }
+
+        static byte[] csvBytes(List<String[]> rows) {
+            StringBuilder sb = new StringBuilder();
+            sb.append('\uFEFF');   /* BOM：Excel 打开中文才不乱码 */
+            for (String[] row : rows) {
+                for (int i = 0; i < row.length; i++) {
+                    if (i > 0) sb.append(',');
+                    sb.append(csvField(row[i]));
+                }
+                sb.append("\r\n");
+            }
+            return sb.toString().getBytes(StandardCharsets.UTF_8);
+        }
+
+        static String csvField(String s) {
+            if (s == null) return "";
+            if (s.indexOf(',') < 0 && s.indexOf('"') < 0
+                    && s.indexOf('\n') < 0 && s.indexOf('\r') < 0) return s;
+            return '"' + s.replace("\"", "\"\"") + '"';
+        }
+
+        private void openChart() {
+            if (chart == null || !chart.isDisplayable()) {
+                chart = new ChartFrame(this);
+                chart.setVisible(true);
+            } else {
+                chart.setExtendedState(chart.getExtendedState() & ~java.awt.Frame.ICONIFIED);
+                chart.toFront();
+            }
+        }
+
         /* ---------- 发送 ---------- */
 
         private byte[] buildTxBytes(String text) {
@@ -2086,6 +2208,7 @@ public class YuciCom {
             txBytes += data.length;
             txFrames++;
             updateCounters();
+            record(true, System.currentTimeMillis(), data);
             rememberHistory(echoText);
             StringBuilder sb = new StringBuilder();
             if (chkTimestamp.isSelected()) {
@@ -3266,6 +3389,341 @@ public class YuciCom {
             if (h > 0) return h + " 小时 " + m + " 分 " + s + " 秒";
             if (m > 0) return m + " 分 " + s + " 秒";
             return s + " 秒";
+        }
+    }
+
+    /** 一条收发记录，导出 CSV / Excel 用。 */
+    static final class Rec {
+        final long t;
+        final boolean tx;
+        final byte[] data;
+
+        Rec(long t, boolean tx, byte[] data) {
+            this.t = t;
+            this.tx = tx;
+            this.data = data;
+        }
+    }
+
+    /**
+     * 极简 xlsx 写入器：手写 OOXML，不引 POI（那会把打包体积撑大好几兆）。
+     * 只支持「一个工作表 + 纯文本/数字单元格」，导出日志够用了。
+     */
+    static final class Xlsx {
+
+        private Xlsx() {
+        }
+
+        static void write(File f, String sheetName, List<String[]> rows) throws IOException {
+            try (ZipOutputStream z = new ZipOutputStream(new FileOutputStream(f))) {
+                put(z, "[Content_Types].xml",
+                        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
+                                + "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">"
+                                + "<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>"
+                                + "<Default Extension=\"xml\" ContentType=\"application/xml\"/>"
+                                + "<Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>"
+                                + "<Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>"
+                                + "</Types>");
+                put(z, "_rels/.rels",
+                        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
+                                + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
+                                + "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/>"
+                                + "</Relationships>");
+                put(z, "xl/workbook.xml",
+                        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
+                                + "<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\""
+                                + " xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">"
+                                + "<sheets><sheet name=\"" + esc(sheetName) + "\" sheetId=\"1\" r:id=\"rId1\"/></sheets>"
+                                + "</workbook>");
+                put(z, "xl/_rels/workbook.xml.rels",
+                        "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>"
+                                + "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">"
+                                + "<Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/>"
+                                + "</Relationships>");
+
+                StringBuilder sb = new StringBuilder(rows.size() * 96 + 512);
+                sb.append("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>")
+                        .append("<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">")
+                        .append("<cols><col min=\"1\" max=\"1\" width=\"12\" customWidth=\"1\"/>")
+                        .append("<col min=\"2\" max=\"2\" width=\"6\" customWidth=\"1\"/>")
+                        .append("<col min=\"3\" max=\"3\" width=\"7\" customWidth=\"1\"/>")
+                        .append("<col min=\"4\" max=\"4\" width=\"48\" customWidth=\"1\"/>")
+                        .append("<col min=\"5\" max=\"5\" width=\"56\" customWidth=\"1\"/></cols>")
+                        .append("<sheetData>");
+                for (int r = 0; r < rows.size(); r++) {
+                    String[] row = rows.get(r);
+                    sb.append("<row r=\"").append(r + 1).append("\">");
+                    for (int c = 0; c < row.length; c++) {
+                        String v = row[c] == null ? "" : row[c];
+                        String ref = (char) ('A' + c) + String.valueOf(r + 1);
+                        if (r > 0 && isNumber(v)) {
+                            sb.append("<c r=\"").append(ref).append("\"><v>").append(v).append("</v></c>");
+                        } else {
+                            sb.append("<c r=\"").append(ref).append("\" t=\"inlineStr\"><is>")
+                                    .append("<t xml:space=\"preserve\">").append(esc(v))
+                                    .append("</t></is></c>");
+                        }
+                    }
+                    sb.append("</row>");
+                }
+                sb.append("</sheetData></worksheet>");
+                put(z, "xl/worksheets/sheet1.xml", sb.toString());
+            }
+        }
+
+        private static void put(ZipOutputStream z, String name, String content) throws IOException {
+            z.putNextEntry(new ZipEntry(name));
+            z.write(content.getBytes(StandardCharsets.UTF_8));
+            z.closeEntry();
+        }
+
+        /** 只用它判断「这格能不能当数字存」，宁可保守一点。 */
+        static boolean isNumber(String s) {
+            if (s.isEmpty() || s.length() > 20) return false;
+            boolean dot = false, digit = false;
+            for (int i = 0; i < s.length(); i++) {
+                char c = s.charAt(i);
+                if (c == '-' && i == 0) continue;
+                if (c == '.') {
+                    if (dot) return false;
+                    dot = true;
+                    continue;
+                }
+                if (c < '0' || c > '9') return false;
+                digit = true;
+            }
+            return digit;
+        }
+
+        static String esc(String s) {
+            StringBuilder b = new StringBuilder(s.length() + 8);
+            for (int i = 0; i < s.length(); i++) {
+                char c = s.charAt(i);
+                switch (c) {
+                    case '&': b.append("&amp;"); break;
+                    case '<': b.append("&lt;"); break;
+                    case '>': b.append("&gt;"); break;
+                    case '"': b.append("&quot;"); break;
+                    default:
+                        if (c < 0x20 && c != '\n' && c != '\t') b.append(' ');
+                        else b.append(c);
+                }
+            }
+            return b.toString();
+        }
+    }
+
+    /**
+     * 把收到的数字直接画成曲线。
+     * 一行里的数字按出现顺序当作 CH1、CH2…，端口每收到一帧就追加一个点。
+     */
+    static final class ChartFrame extends JFrame {
+
+        private static final int MAX_POINTS = 4000;
+        private static final Pattern NUM = Pattern.compile("-?\\d+(?:\\.\\d+)?");
+        private static final Color[] COLORS = {
+                new Color(0xD0, 0x3B, 0x3B), new Color(0x2E, 0x7D, 0xD3),
+                new Color(0x2E, 0x9E, 0x5B), new Color(0xC8, 0x7A, 0x1E),
+                new Color(0x8A, 0x4C, 0xC8), new Color(0x1F, 0x9E, 0xA8)};
+
+        private final ArrayDeque<double[]> pts = new ArrayDeque<>();
+        private int channels = 1;
+        private long total;
+        private boolean paused;
+        private boolean autoScale = true;
+        private boolean frozen;
+        private double fMin, fMax;
+
+        private final PlotPanel plot = new PlotPanel();
+        private final JLabel lblInfo = new JLabel("等待数据…");
+
+        ChartFrame(Window owner) {
+            super("数据曲线图");
+            setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+            setSize(800, 520);
+            setMinimumSize(new Dimension(480, 320));
+            setLocationRelativeTo(owner);
+            setLayout(new BorderLayout(0, 0));
+
+            JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
+            JCheckBox chkPause = new JCheckBox("暂停");
+            chkPause.addActionListener(e -> paused = chkPause.isSelected());
+            JButton btnClear = new JButton("清空");
+            btnClear.addActionListener(e -> clear());
+            JCheckBox chkAuto = new JCheckBox("自动量程", true);
+            chkAuto.addActionListener(e -> {
+                autoScale = chkAuto.isSelected();
+                frozen = false;
+                plot.repaint();
+            });
+            bar.add(chkPause);
+            bar.add(btnClear);
+            bar.add(chkAuto);
+            bar.add(new JLabel("  "));
+            bar.add(lblInfo);
+            add(bar, BorderLayout.NORTH);
+            add(plot, BorderLayout.CENTER);
+
+            JLabel hint = new JLabel("一行里的数字按顺序画成 CH1、CH2…（只在文本显示模式采样）");
+            hint.setForeground(new Color(0x77, 0x77, 0x77));
+            hint.setBorder(new EmptyBorder(2, 8, 6, 8));
+            add(hint, BorderLayout.SOUTH);
+        }
+
+        void feed(String text) {
+            if (paused || text == null || text.isEmpty()) return;
+            boolean added = false;
+            for (String line : text.split("\n")) {
+                double[] v = nums(line);
+                if (v == null) continue;
+                pts.addLast(v);
+                while (pts.size() > MAX_POINTS) pts.removeFirst();
+                channels = Math.max(channels, v.length);
+                total++;
+                added = true;
+            }
+            if (added) {
+                lblInfo.setText("点 " + total + " · 通道 " + channels);
+                plot.repaint();
+            }
+        }
+
+        private static double[] nums(String line) {
+            Matcher m = NUM.matcher(line);
+            double[] buf = new double[8];
+            int n = 0;
+            while (m.find() && n < buf.length) {
+                try {
+                    buf[n++] = Double.parseDouble(m.group());
+                } catch (NumberFormatException ignored) {
+                }
+            }
+            return n == 0 ? null : Arrays.copyOf(buf, n);
+        }
+
+        private void clear() {
+            pts.clear();
+            total = 0;
+            channels = 1;
+            frozen = false;
+            lblInfo.setText("等待数据…");
+            plot.repaint();
+        }
+
+        static String num(double v) {
+            double a = Math.abs(v);
+            if (a >= 100000 || (a > 0 && a < 0.001)) return String.format(Locale.ROOT, "%.2e", v);
+            if (a >= 100) return String.format(Locale.ROOT, "%.0f", v);
+            if (a >= 1) return String.format(Locale.ROOT, "%.2f", v);
+            return String.format(Locale.ROOT, "%.3f", v);
+        }
+
+        private final class PlotPanel extends JPanel {
+
+            PlotPanel() {
+                setBackground(Color.WHITE);
+                setPreferredSize(new Dimension(760, 400));
+            }
+
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+                int w = getWidth(), h = getHeight();
+                int left = 62, right = 14, top = 26, bottom = 30;
+                int pw = w - left - right, ph = h - top - bottom;
+                if (pw < 24 || ph < 24) {
+                    g2.dispose();
+                    return;
+                }
+
+                List<double[]> snap = new ArrayList<>(pts);
+                double min = Double.MAX_VALUE, max = -Double.MAX_VALUE;
+                for (double[] v : snap) {
+                    for (double x : v) {
+                        if (x < min) min = x;
+                        if (x > max) max = x;
+                    }
+                }
+                if (min > max) {
+                    min = 0;
+                    max = 1;
+                }
+                if (autoScale) {
+                    fMin = min;
+                    fMax = max;
+                    frozen = true;
+                } else if (frozen) {
+                    min = fMin;
+                    max = fMax;
+                }
+                if (max - min < 1e-9) {
+                    min -= 1;
+                    max += 1;
+                }
+                double pad = (max - min) * 0.08;
+                double lo = min - pad, hi = max + pad;
+
+                /* 网格 + Y 轴刻度 */
+                g2.setFont(new Font("Dialog", Font.PLAIN, 11));
+                for (int i = 0; i <= 4; i++) {
+                    int y = top + ph * i / 4;
+                    g2.setColor(new Color(0xED, 0xED, 0xED));
+                    g2.drawLine(left, y, left + pw, y);
+                    g2.setColor(new Color(0x66, 0x66, 0x66));
+                    String s = num(hi - (hi - lo) * i / 4.0);
+                    g2.drawString(s, left - 8 - g2.getFontMetrics().stringWidth(s), y + 4);
+                }
+                g2.setColor(new Color(0xBB, 0xBB, 0xBB));
+                g2.drawLine(left, top, left, top + ph);
+                g2.drawLine(left, top + ph, left + pw, top + ph);
+
+                /* 曲线 */
+                int n = snap.size();
+                g2.setStroke(new BasicStroke(1.7f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                for (int ch = 0; ch < channels; ch++) {
+                    g2.setColor(COLORS[ch % COLORS.length]);
+                    Path2D.Double path = new Path2D.Double();
+                    boolean started = false;
+                    for (int i = 0; i < n; i++) {
+                        double[] v = snap.get(i);
+                        if (ch >= v.length) {
+                            started = false;
+                            continue;
+                        }
+                        double x = n == 1 ? left + pw / 2.0 : left + pw * (i / (double) (n - 1));
+                        double y = top + ph * (hi - v[ch]) / (hi - lo);
+                        if (!started) {
+                            path.moveTo(x, y);
+                            started = true;
+                        } else {
+                            path.lineTo(x, y);
+                        }
+                    }
+                    g2.draw(path);
+                }
+
+                /* 图例 */
+                int lx = left + 6;
+                for (int ch = 0; ch < channels; ch++) {
+                    g2.setColor(COLORS[ch % COLORS.length]);
+                    g2.fillRect(lx, top - 14, 11, 3);
+                    g2.setColor(new Color(0x44, 0x44, 0x44));
+                    g2.drawString("CH" + (ch + 1), lx + 15, top - 8);
+                    lx += 58;
+                }
+
+                if (n == 0) {
+                    g2.setColor(new Color(0xAA, 0xAA, 0xAA));
+                    g2.setFont(new Font("Dialog", Font.PLAIN, 13));
+                    String t = "还没有数据 —— 端口收到数字后这里会自动出曲线";
+                    g2.drawString(t, left + (pw - g2.getFontMetrics().stringWidth(t)) / 2, top + ph / 2);
+                }
+                g2.dispose();
+            }
         }
     }
 }
