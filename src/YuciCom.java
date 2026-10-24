@@ -78,7 +78,7 @@ import java.util.zip.ZipOutputStream;
 public class YuciCom {
 
     public static final String APP = "yuci_com";
-    public static final String VERSION = "2.3";
+    public static final String VERSION = "2.4";
     /** 开源仓库地址：fork 之后把这一行改成自己的仓库即可。 */
     public static final String PROJECT_URL = "https://github.com/yuci07/yuci_com";
 
@@ -1090,6 +1090,198 @@ public class YuciCom {
         }
     }
 
+    /* ==================== 视觉规范 ==================== */
+
+    /** 浅色主题的一整套色值和字体。想换配色只改这里。 */
+    static final class Ui {
+        static final Color BG = new Color(0xF5, 0xF6, 0xF8);
+        static final Color SURFACE = new Color(0xFF, 0xFF, 0xFF);
+        static final Color PANEL = new Color(0xFA, 0xFB, 0xFC);
+        static final Color BORDER = new Color(0xE3, 0xE6, 0xEB);
+        static final Color TEXT = new Color(0x1F, 0x23, 0x28);
+        static final Color MUTED = new Color(0x6B, 0x72, 0x80);
+        static final Color PRIMARY = new Color(0x2F, 0x6F, 0xED);
+        static final Color PRIMARY_HOVER = new Color(0x25, 0x60, 0xD4);
+        static final Color PRIMARY_DOWN = new Color(0x1D, 0x4E, 0xB3);
+        static final Color HOVER = new Color(0xEE, 0xF2, 0xF8);
+        static final Color OK = new Color(0x16, 0xA3, 0x4A);
+        static final Color DANGER = new Color(0xDC, 0x2A, 0x2A);
+
+        static Font font(int size) {
+            return new Font("Microsoft YaHei UI", Font.PLAIN, size);
+        }
+
+        static Font bold(int size) {
+            return new Font("Microsoft YaHei UI", Font.BOLD, size);
+        }
+    }
+
+    /** 扁平按钮：primary 走实心强调色，其余是白底细描边；都有 hover / 按下态。 */
+    static class FlatButton extends JButton {
+
+        private final boolean primary;
+        private boolean over, down;
+
+        FlatButton(String text, boolean primary) {
+            super(text);
+            this.primary = primary;
+            setFont(Ui.font(12));
+            setForeground(primary ? Color.WHITE : Ui.TEXT);
+            setFocusPainted(false);
+            setBorderPainted(false);
+            setContentAreaFilled(false);
+            setOpaque(false);
+            setRolloverEnabled(true);
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            setBorder(new EmptyBorder(5, 14, 5, 14));
+            addMouseListener(new java.awt.event.MouseAdapter() {
+                @Override
+                public void mouseEntered(java.awt.event.MouseEvent e) {
+                    over = true;
+                    repaint();
+                }
+
+                @Override
+                public void mouseExited(java.awt.event.MouseEvent e) {
+                    over = false;
+                    down = false;
+                    repaint();
+                }
+
+                @Override
+                public void mousePressed(java.awt.event.MouseEvent e) {
+                    if (isEnabled()) {
+                        down = true;
+                        repaint();
+                    }
+                }
+
+                @Override
+                public void mouseReleased(java.awt.event.MouseEvent e) {
+                    down = false;
+                    repaint();
+                }
+            });
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            int w = getWidth(), h = getHeight();
+            Color fill;
+            if (!isEnabled()) {
+                fill = primary ? new Color(0xC2, 0xD3, 0xF5) : new Color(0xF4, 0xF5, 0xF7);
+            } else if (primary) {
+                fill = down ? Ui.PRIMARY_DOWN : (over ? Ui.PRIMARY_HOVER : Ui.PRIMARY);
+            } else {
+                fill = down ? new Color(0xE1, 0xE7, 0xF1) : (over ? Ui.HOVER : Ui.SURFACE);
+            }
+            g2.setColor(fill);
+            g2.fillRoundRect(0, 0, w - 1, h - 1, 8, 8);
+            if (!primary) {
+                g2.setColor(isEnabled() ? Ui.BORDER : new Color(0xEE, 0xF0, 0xF3));
+                g2.drawRoundRect(0, 0, w - 1, h - 1, 8, 8);
+            }
+            g2.dispose();
+            super.paintComponent(g);
+        }
+    }
+
+    /** 圆角浅色分组面板，用来把一排控件圈成一块，别让它们糊成一片。 */
+    static class GroupPanel extends JPanel {
+
+        GroupPanel(LayoutManager lm) {
+            super(lm);
+            setOpaque(false);
+            setBorder(new EmptyBorder(4, 10, 4, 10));
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(Ui.PANEL);
+            g2.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
+            g2.setColor(Ui.BORDER);
+            g2.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
+            g2.dispose();
+            super.paintComponent(g);
+        }
+    }
+
+    /** 扁平标签页：选中项白底 + 底部一条强调色，未选中透明灰字。 */
+    static final class FlatTabbedPaneUI extends javax.swing.plaf.basic.BasicTabbedPaneUI {
+
+        private final Color areaBg;
+
+        FlatTabbedPaneUI(Color areaBg) {
+            this.areaBg = areaBg;
+        }
+
+        @Override
+        protected void installDefaults() {
+            super.installDefaults();
+            tabAreaInsets = new Insets(6, 10, 0, 10);
+            tabInsets = new Insets(6, 14, 7, 14);
+            selectedTabPadInsets = new Insets(0, 0, 0, 0);
+            contentBorderInsets = new Insets(0, 0, 0, 0);
+        }
+
+        @Override
+        protected void paintTabArea(Graphics g, int place, int sel) {
+            Rectangle clip = g.getClipBounds();
+            if (clip != null) {
+                g.setColor(areaBg);
+                g.fillRect(clip.x, clip.y, clip.width, clip.height);
+            }
+            super.paintTabArea(g, place, sel);
+        }
+
+        @Override
+        protected void paintTabBackground(Graphics g, int place, int index,
+                                          int x, int y, int w, int h, boolean selected) {
+            if (!selected) return;
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(new Color(0xEC, 0xF2, 0xFE));
+            g2.fillRoundRect(x + 1, y + 2, w - 2, h - 3, 9, 9);
+            g2.dispose();
+        }
+
+        @Override
+        protected void paintTabBorder(Graphics g, int place, int index,
+                                      int x, int y, int w, int h, boolean selected) {
+            if (!selected) return;
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(Ui.PRIMARY);
+            g2.setStroke(new BasicStroke(2.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2.drawLine(x + 11, y + h - 2, x + w - 11, y + h - 2);
+            g2.dispose();
+        }
+
+        @Override
+        protected void paintContentBorder(Graphics g, int place, int sel) {
+        }
+
+        @Override
+        protected void paintFocusIndicator(Graphics g, int place, Rectangle[] rects,
+                                           int index, Rectangle icon, Rectangle text, boolean sel) {
+        }
+
+        @Override
+        protected void paintText(Graphics g, int place, Font font, FontMetrics m,
+                                 int index, String text, Rectangle rect, boolean selected) {
+            g.setColor(selected ? Ui.TEXT : Ui.MUTED);
+            g.setFont(selected ? Ui.bold(12) : Ui.font(12));
+            int x = rect.x + (rect.width - m.stringWidth(text)) / 2;
+            int y = rect.y + (rect.height + m.getAscent() - m.getDescent()) / 2;
+            g.drawString(text, x, y);
+        }
+    }
+
     /* ==================== 图形界面 ==================== */
 
     static final class Gui {
@@ -1147,8 +1339,8 @@ public class YuciCom {
         private final JComboBox<String> cbParity = new JComboBox<>(new String[]{"无 None", "奇 Odd", "偶 Even", "标记 Mark", "空格 Space"});
         private final JComboBox<String> cbStop = new JComboBox<>(new String[]{"1", "1.5", "2"});
         private final JComboBox<String> cbFlow = new JComboBox<>(new String[]{"无", "RTS/CTS 硬件", "XON/XOFF 软件", "DSR/DTR"});
-        private final JButton btnOpen = new JButton("打开串口");
-        private final JButton btnRefresh = new JButton("刷新");
+        private final FlatButton btnOpen = new FlatButton("打开串口", true);
+        private final FlatButton btnRefresh = new FlatButton("刷新", false);
         private final JCheckBox chkDtr = new JCheckBox("DTR", true);
         private final JCheckBox chkRts = new JCheckBox("RTS", true);
 
@@ -1163,21 +1355,21 @@ public class YuciCom {
         private final JComboBox<String> cbEncoding = new JComboBox<>(Enc.NAMES);
         private final JComboBox<String> cbGap = new JComboBox<>(new String[]{
                 "不断帧", "5 ms", "10 ms", "20 ms", "50 ms", "100 ms", "200 ms"});
-        private final JButton btnClear = new JButton("清空");
-        private final JButton btnSaveLog = new JButton("保存日志");
-        private final JButton btnBg = new JButton("背景…");
+        private final FlatButton btnClear = new FlatButton("清空", false);
+        private final FlatButton btnSaveLog = new FlatButton("保存日志", false);
+        private final FlatButton btnBg = new FlatButton("背景…", false);
 
         /* --- 发送区 --- */
         private final HintTextArea txArea = new HintTextArea(4, 40, "请输入文本（Ctrl+Enter 发送）");
         private final JCheckBox chkHexSend = new JCheckBox("HEX 发送");
         private final JComboBox<String> cbLineEnd = new JComboBox<>(new String[]{"无", "\\r\\n", "\\n", "\\r"});
-        private final JButton btnSend = new JButton("发送");
+        private final FlatButton btnSend = new FlatButton("发送", true);
         private final JCheckBox chkTimed = new JCheckBox("定时发送");
         private final JTextField tfInterval = new JTextField("1000", 6);
         private final JTextField tfCount = new JTextField("0", 4);
-        private final JButton btnFile = new JButton("发送文件…");
-        private final JButton btnFrame = new JButton("协议组包…");
-        private final JButton btnCrc = new JButton("CRC 计算…");
+        private final FlatButton btnFile = new FlatButton("发送文件…", false);
+        private final FlatButton btnFrame = new FlatButton("协议组包…", false);
+        private final FlatButton btnCrc = new FlatButton("CRC 计算…", false);
         private final JProgressBar progress = new JProgressBar(0, 100);
 
         /* --- 状态栏 --- */
@@ -1219,9 +1411,11 @@ public class YuciCom {
 
         private final AppFrame host;
         private final JMenuBar myMenu;
+        private final int no;
 
-        SessionPanel(AppFrame host) {
+        SessionPanel(AppFrame host, int no) {
             this.host = host;
+            this.no = no;
             setLayout(new BorderLayout());
 
             initStyles();
@@ -1251,16 +1445,17 @@ public class YuciCom {
         /* ---------- 样式与皮肤 ---------- */
 
         private void initStyles() {
-            StyleConstants.setForeground(stRx, new Color(0xD4, 0xD4, 0xD4));
+            setBackground(Ui.BG);
+            StyleConstants.setForeground(stRx, new Color(0xE6, 0xE6, 0xE6));
             StyleConstants.setForeground(stTx, new Color(0x6C, 0xB6, 0xF0));
-            StyleConstants.setForeground(stSys, new Color(0x86, 0x8C, 0x96));
+            StyleConstants.setForeground(stSys, new Color(0x9E, 0xA6, 0xB2));
             StyleConstants.setForeground(stErr, new Color(0xF0, 0x7A, 0x7A));
             StyleConstants.setItalic(stSys, true);
 
             rxPane.setEditable(false);
             rxPane.setBackground(new Color(0x1E, 0x1E, 0x1E));
-            rxPane.setForeground(new Color(0xD4, 0xD4, 0xD4));
-            rxPane.setCaretColor(new Color(0xD4, 0xD4, 0xD4));
+            rxPane.setForeground(new Color(0xE6, 0xE6, 0xE6));
+            rxPane.setCaretColor(new Color(0xE6, 0xE6, 0xE6));
             rxPane.setFont(mono(fontSize));
             rxPane.setBorder(new EmptyBorder(6, 8, 6, 8));
             rxScroll.getViewport().setBackground(new Color(0x1E, 0x1E, 0x1E));
@@ -1280,10 +1475,10 @@ public class YuciCom {
             progress.setVisible(false);
             progress.setPreferredSize(new Dimension(160, 18));
 
-            btnOpen.setPreferredSize(new Dimension(104, 26));
-            btnOpen.setFont(btnOpen.getFont().deriveFont(Font.BOLD));
-            btnSend.setPreferredSize(new Dimension(92, 30));
-            btnSend.setFont(btnSend.getFont().deriveFont(Font.BOLD));
+            btnOpen.setPreferredSize(new Dimension(112, 32));
+            btnOpen.setFont(Ui.bold(12));
+            btnSend.setPreferredSize(new Dimension(96, 34));
+            btnSend.setFont(Ui.bold(13));
 
             chkHexView.setSelected(Config.getBool("view.hex", false));
             chkTimestamp.setSelected(Config.getBool("view.ts", true));
@@ -1373,58 +1568,111 @@ public class YuciCom {
         }
 
         private JComponent buildPortBar() {
-            JPanel wrap = new JPanel();
-            wrap.setLayout(new BoxLayout(wrap, BoxLayout.Y_AXIS));
+            JPanel wrap = new JPanel(new BorderLayout(0, 9));
+            wrap.setBackground(Ui.SURFACE);
+            wrap.setBorder(new EmptyBorder(10, 12, 10, 12));
 
-            JPanel r1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
-            r1.add(new JLabel("串口"));
-            cbPort.setPreferredSize(new Dimension(252, 26));
+            /* 第一行：选口 + 主操作 + 控制线 */
+            JPanel r1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+            r1.setOpaque(false);
+            r1.add(tag("串口"));
+            cbPort.setPreferredSize(new Dimension(310, 30));
+            cbPort.setFont(Ui.font(12));
             r1.add(cbPort);
+            btnRefresh.setPreferredSize(new Dimension(68, 32));
             r1.add(btnRefresh);
             r1.add(btnOpen);
-            r1.add(Box.createHorizontalStrut(16));
+            r1.add(vline());
             r1.add(chkDtr);
             r1.add(chkRts);
+            wrap.add(r1, BorderLayout.NORTH);
 
-            JPanel r2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
-            r2.add(new JLabel("波特率"));
+            /* 第二行：串口参数，圈成一块浅色圆角，两段用竖线隔开 */
+            JPanel p1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 7, 0));
+            p1.setOpaque(false);
             cbBaud.setEditable(true);
-            cbBaud.setPreferredSize(new Dimension(92, 26));
-            r2.add(cbBaud);
-            r2.add(new JLabel("数据位"));
-            cbData.setPreferredSize(new Dimension(54, 26));
-            r2.add(cbData);
-            r2.add(new JLabel("校验"));
-            cbParity.setPreferredSize(new Dimension(96, 26));
-            r2.add(cbParity);
-            r2.add(new JLabel("停止位"));
-            cbStop.setPreferredSize(new Dimension(58, 26));
-            r2.add(cbStop);
-            r2.add(new JLabel("流控"));
-            cbFlow.setPreferredSize(new Dimension(126, 26));
-            r2.add(cbFlow);
-            r2.add(new JLabel("编码"));
-            cbEncoding.setPreferredSize(new Dimension(94, 26));
-            r2.add(cbEncoding);
-            r2.add(new JLabel("断帧"));
-            cbGap.setPreferredSize(new Dimension(84, 26));
-            cbGap.setToolTipText("超过该时间没有新数据，就认为一帧结束并换行显示");
-            r2.add(cbGap);
+            p1.add(tag("波特率"));
+            combo(cbBaud, 96);
+            p1.add(cbBaud);
+            p1.add(tag("数据位"));
+            combo(cbData, 56);
+            p1.add(cbData);
+            p1.add(tag("校验"));
+            combo(cbParity, 96);
+            p1.add(cbParity);
+            p1.add(tag("停止位"));
+            combo(cbStop, 60);
+            p1.add(cbStop);
+            p1.add(tag("流控"));
+            combo(cbFlow, 120);
+            p1.add(cbFlow);
 
-            wrap.add(r1);
-            wrap.add(r2);
+            JPanel p2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 7, 0));
+            p2.setOpaque(false);
+            p2.add(tag("编码"));
+            combo(cbEncoding, 96);
+            p2.add(cbEncoding);
+            p2.add(tag("断帧"));
+            combo(cbGap, 88);
+            cbGap.setToolTipText("超过该时间没有新数据，就认为一帧结束并换行显示");
+            p2.add(cbGap);
+
+            JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+            row.setOpaque(false);
+            row.add(p1);
+            row.add(vline());
+            row.add(p2);
+
+            GroupPanel gp = new GroupPanel(new BorderLayout());
+            gp.setBorder(new EmptyBorder(5, 6, 5, 6));
+            gp.add(row, BorderLayout.WEST);
+            wrap.add(gp, BorderLayout.CENTER);
             return wrap;
         }
 
+        private JLabel tag(String s) {
+            JLabel l = new JLabel(s);
+            l.setFont(Ui.font(12));
+            l.setForeground(Ui.MUTED);
+            return l;
+        }
+
+        /** 状态点：返回 HTML 开头（调用方自己补 </html>）。 */
+        private static String dot(String color) {
+            return "<html><font color='" + color + "'>&#9679;</font>&nbsp; ";
+        }
+
+        private JComponent vline() {
+            JPanel p = new JPanel() {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    g.setColor(Ui.BORDER);
+                    g.fillRect(getWidth() / 2, 3, 1, Math.max(0, getHeight() - 6));
+                }
+            };
+            p.setOpaque(false);
+            p.setPreferredSize(new Dimension(9, 20));
+            return p;
+        }
+
+        private void combo(JComboBox<?> cb, int w) {
+            cb.setPreferredSize(new Dimension(w, 30));
+            cb.setFont(Ui.font(12));
+            cb.setBackground(Ui.SURFACE);
+        }
+
         private JPanel buildRxToolbar() {
-            JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4));
+            JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 6));
+            p.setBackground(Ui.SURFACE);
             p.setBorder(new MatteBorderTop());
-            p.add(new JLabel("接收"));
             p.add(chkHexView);
             p.add(chkTimestamp);
             p.add(chkPause);
             p.add(chkAutoScroll);
-            p.add(Box.createHorizontalStrut(12));
+            p.add(vline());
+            btnClear.setPreferredSize(new Dimension(64, 30));
+            btnSaveLog.setPreferredSize(new Dimension(88, 30));
+            btnBg.setPreferredSize(new Dimension(74, 30));
             p.add(btnClear);
             p.add(btnSaveLog);
             p.add(btnBg);
@@ -1443,33 +1691,50 @@ public class YuciCom {
             /* --- 手工发送页 --- */
             JPanel manual = new JPanel(new BorderLayout(0, 0));
 
-            JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 5));
-            bar.add(new JLabel("发送"));
-            bar.add(chkHexSend);
-            bar.add(new JLabel("行尾"));
-            cbLineEnd.setPreferredSize(new Dimension(76, 26));
-            bar.add(cbLineEnd);
-            bar.add(new JLabel("定时"));
-            bar.add(chkTimed);
-            bar.add(new JLabel("间隔ms"));
-            tfInterval.setPreferredSize(new Dimension(62, 26));
-            bar.add(tfInterval);
-            bar.add(new JLabel("次数(0=无限)"));
-            tfCount.setPreferredSize(new Dimension(44, 26));
-            bar.add(tfCount);
-            bar.add(Box.createHorizontalStrut(6));
-            bar.add(btnSend);
-            bar.add(btnFile);
-            bar.add(btnFrame);
-            bar.add(btnCrc);
-            bar.add(progress);
+            JPanel bar = new JPanel(new BorderLayout());
+            bar.setBackground(Ui.SURFACE);
+            bar.setBorder(new EmptyBorder(6, 12, 6, 12));
+
+            JPanel leftBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+            leftBar.setOpaque(false);
+            leftBar.add(chkHexSend);
+            leftBar.add(tag("行尾"));
+            combo(cbLineEnd, 82);
+            leftBar.add(cbLineEnd);
+            leftBar.add(vline());
+            leftBar.add(chkTimed);
+            leftBar.add(tag("间隔"));
+            tfInterval.setPreferredSize(new Dimension(64, 28));
+            tfInterval.setFont(Ui.font(12));
+            tfInterval.setToolTipText("定时发送的间隔，单位毫秒");
+            leftBar.add(tfInterval);
+            leftBar.add(tag("次"));
+            tfCount.setPreferredSize(new Dimension(48, 28));
+            tfCount.setFont(Ui.font(12));
+            tfCount.setToolTipText("发送次数，0 表示无限循环");
+            leftBar.add(tfCount);
+
+            JPanel rightBar = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+            rightBar.setOpaque(false);
+            btnFile.setPreferredSize(new Dimension(96, 30));
+            btnFrame.setPreferredSize(new Dimension(96, 30));
+            btnCrc.setPreferredSize(new Dimension(94, 30));
+            rightBar.add(btnFile);
+            rightBar.add(btnFrame);
+            rightBar.add(btnCrc);
+            rightBar.add(btnSend);
+            rightBar.add(progress);
+
+            bar.add(leftBar, BorderLayout.WEST);
+            bar.add(rightBar, BorderLayout.EAST);
 
             JScrollPane sp = new JScrollPane(txArea);
-            sp.setPreferredSize(new Dimension(100, 78));
+            sp.setPreferredSize(new Dimension(100, 82));
             sp.setBorder(new EmptyBorder(0, 0, 0, 0));
 
             JPanel bottom = new JPanel(new BorderLayout());
-            bottom.setBorder(new EmptyBorder(4, 10, 2, 10));
+            bottom.setBackground(Ui.SURFACE);
+            bottom.setBorder(new EmptyBorder(2, 12, 8, 12));
             bottom.add(sp, BorderLayout.CENTER);
 
             manual.add(bar, BorderLayout.NORTH);
@@ -1484,7 +1749,11 @@ public class YuciCom {
             sendTabs = new JTabbedPane(JTabbedPane.TOP, JTabbedPane.SCROLL_TAB_LAYOUT);
             sendTabs.addTab("手工发送", manual);
             sendTabs.addTab("快捷发送", quick);
-            sendTabs.setPreferredSize(new Dimension(100, 190));
+            sendTabs.setUI(new FlatTabbedPaneUI(Ui.SURFACE));
+            sendTabs.setBackground(Ui.SURFACE);
+            manual.setBackground(Ui.SURFACE);
+            quick.setBackground(Ui.SURFACE);
+            sendTabs.setPreferredSize(new Dimension(100, 196));
             sendTabs.setMinimumSize(new Dimension(100, 150));
 
             outer.add(sendTabs, BorderLayout.CENTER);
@@ -1494,15 +1763,27 @@ public class YuciCom {
 
         private JPanel buildStatusBar() {
             JPanel p = new JPanel(new BorderLayout());
-            p.setBorder(new EmptyBorder(3, 10, 3, 10));
-            p.setBackground(new Color(0xF2, 0xF2, 0xF2));
-            lblStatus.setFont(lblStatus.getFont().deriveFont(Font.PLAIN, 12));
+            p.setBackground(Ui.SURFACE);
+            p.setBorder(new javax.swing.border.CompoundBorder(
+                    new MatteBorderTop(), new EmptyBorder(5, 12, 5, 12)));
+
+            lblStatus.setFont(Ui.font(12));
+            lblStatus.setForeground(Ui.MUTED);
+            lblStatus.setText(dot("#9CA3AF") + "未连接</html>");
             p.add(lblStatus, BorderLayout.WEST);
-            JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 14, 0));
+
+            JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
             right.setOpaque(false);
-            lblRate.setFont(lblRate.getFont().deriveFont(Font.PLAIN, 12));
+            lblRate.setFont(Ui.font(12));
+            lblRate.setForeground(Ui.MUTED);
+            lblSignals.setFont(Ui.font(12));
+            lblSignals.setForeground(Ui.MUTED);
+            lblCount.setFont(Ui.font(12));
+            lblCount.setForeground(Ui.TEXT);
             right.add(lblRate);
+            right.add(vline());
             right.add(lblSignals);
+            right.add(vline());
             right.add(lblCount);
             p.add(right, BorderLayout.EAST);
             return p;
@@ -1510,7 +1791,8 @@ public class YuciCom {
 
         private JMenuBar buildMenu() {
             JMenuBar mb = new JMenuBar();
-            mb.setBorder(new EmptyBorder(2, 4, 2, 4));
+            mb.setBackground(Ui.SURFACE);
+            mb.setBorder(new EmptyBorder(5, 8, 5, 8));
 
             /* ---------------- 文件 ---------------- */
             JMenu mFile = new JMenu("文件");
@@ -1730,6 +2012,10 @@ public class YuciCom {
             mHelp.add(item("关于 " + APP, e -> showAbout(), null));
             mHelp.add(item("项目主页（GitHub）", e -> openProjectPage(), null));
             mb.add(mHelp);
+            for (int i = 0; i < mb.getMenuCount(); i++) {
+                JMenu m = mb.getMenu(i);
+                if (m != null) m.setFont(Ui.font(12));
+            }
             return mb;
         }
 
@@ -1841,7 +2127,7 @@ public class YuciCom {
                 }
             }
             if (cbPort.getItemCount() == 0) {
-                lblStatus.setText("未发现串口，请插上 USB-TTL 后按 F5");
+                lblStatus.setText(dot("#9CA3AF") + "未发现串口，请插上 USB-TTL 后按 F5</html>");
             }
         }
 
@@ -1923,7 +2209,8 @@ public class YuciCom {
             cbStop.setEnabled(false);
             cbFlow.setEnabled(false);
             openAt = System.currentTimeMillis();
-            lblStatus.setText("已连接 " + name + "  ·  " + baud + " " + dataBits + parityLetter(parity) + stopLetter(stop));
+            lblStatus.setText(dot("#16A34A") + "已连接 " + name + "  ·  " + baud + " "
+                    + dataBits + parityLetter(parity) + stopLetter(stop) + "</html>");
             Config.put("port.name", name);
             Config.put("port.baud", baud);
             Config.put("port.data", dataBits);
@@ -1942,7 +2229,9 @@ public class YuciCom {
             cbParity.setEnabled(true);
             cbStop.setEnabled(true);
             cbFlow.setEnabled(true);
-            lblStatus.setText("未连接" + (reason == null || reason.isEmpty() ? "" : "  ·  " + reason));
+            boolean abnormal = reason != null && !reason.isEmpty();
+            lblStatus.setText(dot(abnormal ? "#DC2A2A" : "#9CA3AF") + "未连接"
+                    + (abnormal ? "  ·  " + reason : "") + "</html>");
             openAt = 0;
             lastRxTick = 0;
             stopTimedSend();
@@ -2347,11 +2636,12 @@ public class YuciCom {
             engine.close();
         }
 
-        /** 标签页标题：连上了显示「COM5 · 115200」，没连只显示端口名。 */
+        /** 标签页标题：连上了显示「COM5 ·  115200」，没连就显示会话序号。 */
         String titleText() {
+            if (!engine.isOpen()) return "会话 " + no;
             Object sel = cbPort.getSelectedItem();
-            String name = sel instanceof PortItem ? ((PortItem) sel).name : "新会话";
-            return engine.isOpen() ? name + " ·  " + cbBaud.getSelectedItem() : name;
+            String name = sel instanceof PortItem ? ((PortItem) sel).name : "串口";
+            return name + " ·  " + cbBaud.getSelectedItem();
         }
 
         /** 最后一个标签页不真的关掉，关串口 + 清干净就地复用。 */
@@ -2620,7 +2910,7 @@ public class YuciCom {
 
         private void restoreBackground() {
             rxPane.setMode(clamp(Config.getInt("bg.mode", 0), 0, BgTextPane.MODES.length - 1));
-            rxPane.setMask(clamp(Config.getInt("bg.mask", 55), 0, 95) / 100f);
+            rxPane.setMask(clamp(Config.getInt("bg.mask", 65), 0, 95) / 100f);
 
             String rec = Config.get("bg.recent", "");
             if (!rec.isEmpty()) {
@@ -3084,7 +3374,7 @@ public class YuciCom {
             bar.setStringPainted(true);
             JLabel info = new JLabel("未选择文件");
             JButton btnStart = new JButton("开始发送");
-            JButton btnStop = new JButton("停止");
+            FlatButton btnStop = new FlatButton("停止", false);
             btnStop.setEnabled(false);
 
             JPanel form = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 8));
@@ -3208,7 +3498,7 @@ public class YuciCom {
         private final QuickModel model = new QuickModel();
         private final JTable table = new JTable(model);
         private final JTextField tfLoop = new JTextField("1000", 5);
-        private final JButton btnLoop = new JButton("全部循环");
+        private final FlatButton btnLoop = new FlatButton("全部循环", false);
         private Timer loopTimer;
         private int loopIndex;
 
@@ -3223,11 +3513,21 @@ public class YuciCom {
                 items.add(new QuickItem("HEX 示例", "AA 55 01 02", true, 0));
             }
 
-            table.setRowHeight(24);
-            table.setFont(new Font("Microsoft YaHei UI", Font.PLAIN, 12));
+            table.setRowHeight(26);
+            table.setFont(Ui.font(12));
             table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+            table.setSelectionBackground(new Color(0xDC, 0xE9, 0xFD));
+            table.setSelectionForeground(Ui.TEXT);
+            table.setShowVerticalLines(false);
+            table.setShowHorizontalLines(true);
+            table.setGridColor(new Color(0xF0, 0xF2, 0xF5));
+            table.setIntercellSpacing(new Dimension(0, 1));
+            table.setBackground(Ui.SURFACE);
             table.getTableHeader().setReorderingAllowed(false);
-            table.getTableHeader().setFont(new Font("Microsoft YaHei UI", Font.PLAIN, 12));
+            table.getTableHeader().setFont(Ui.font(12));
+            table.getTableHeader().setBackground(Ui.PANEL);
+            table.getTableHeader().setForeground(Ui.MUTED);
+            table.getTableHeader().setPreferredSize(new Dimension(10, 28));
             table.getColumnModel().getColumn(0).setPreferredWidth(150);
             table.getColumnModel().getColumn(1).setPreferredWidth(60);
             table.getColumnModel().getColumn(2).setPreferredWidth(560);
@@ -3244,13 +3544,13 @@ public class YuciCom {
             add(sp, BorderLayout.CENTER);
 
             JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 3));
-            JButton btnSend = new JButton("发送选中");
-            JButton btnAdd = new JButton("添加");
-            JButton btnEdit = new JButton("编辑");
-            JButton btnDel = new JButton("删除");
-            JButton btnUp = new JButton("上移");
-            JButton btnDown = new JButton("下移");
-            JButton btnStop = new JButton("停止");
+            FlatButton btnSend = new FlatButton("发送选中", true);
+            FlatButton btnAdd = new FlatButton("添加", false);
+            FlatButton btnEdit = new FlatButton("编辑", false);
+            FlatButton btnDel = new FlatButton("删除", false);
+            FlatButton btnUp = new FlatButton("上移", false);
+            FlatButton btnDown = new FlatButton("下移", false);
+            FlatButton btnStop = new FlatButton("停止", false);
             btnSend.setFont(btnSend.getFont().deriveFont(Font.BOLD));
 
             bar.add(btnSend);
@@ -3485,8 +3785,8 @@ public class YuciCom {
         private final SessionPanel owner;
         private final JTextArea code = new JTextArea();
         private final JTextArea out = new JTextArea();
-        private final JButton btnRun = new JButton("运行");
-        private final JButton btnStop = new JButton("停止");
+        private final FlatButton btnRun = new FlatButton("运行", true);
+        private final FlatButton btnStop = new FlatButton("停止", false);
         private volatile boolean running;
         private volatile boolean stopping;
         private Thread runner;
@@ -3511,28 +3811,53 @@ public class YuciCom {
             btnRun.addActionListener(e -> run());
             btnStop.setEnabled(false);
             btnStop.addActionListener(e -> stop());
-            JButton btnSample = new JButton("插入示例");
+            FlatButton btnSample = new FlatButton("插入示例", false);
             btnSample.addActionListener(e -> code.setText(SAMPLE));
-            JButton btnClear = new JButton("清空日志");
+            FlatButton btnClear = new FlatButton("清空日志", false);
             btnClear.addActionListener(e -> out.setText(""));
             bar.add(btnRun);
             bar.add(btnStop);
             bar.add(btnSample);
             bar.add(btnClear);
-            bar.add(new JLabel("  send_line / send / send_hex / delay / print / is_open"));
-            add(bar, BorderLayout.NORTH);
+            JPanel barWrap = new JPanel(new BorderLayout());
+            barWrap.setBackground(Ui.SURFACE);
+            barWrap.setBorder(new EmptyBorder(6, 8, 2, 8));
+            barWrap.add(bar, BorderLayout.WEST);
+            add(barWrap, BorderLayout.NORTH);
 
             JPanel body = new JPanel(new BorderLayout());
-            body.add(new JLabel(" 脚本"), BorderLayout.NORTH);
+            body.setBackground(Ui.SURFACE);
+            body.setBorder(new EmptyBorder(4, 10, 0, 10));
+            JLabel lbCode = new JLabel("脚本");
+            lbCode.setFont(Ui.font(11));
+            lbCode.setForeground(Ui.MUTED);
+            lbCode.setBorder(new EmptyBorder(0, 0, 4, 0));
+            body.add(lbCode, BorderLayout.NORTH);
             body.add(new JScrollPane(code), BorderLayout.CENTER);
+
             JPanel bottom = new JPanel(new BorderLayout());
-            bottom.add(new JLabel(" 输出"), BorderLayout.NORTH);
+            bottom.setBackground(Ui.SURFACE);
+            bottom.setBorder(new EmptyBorder(2, 10, 0, 10));
+            JLabel lbOut = new JLabel("输出");
+            lbOut.setFont(Ui.font(11));
+            lbOut.setForeground(Ui.MUTED);
+            lbOut.setBorder(new EmptyBorder(0, 0, 4, 0));
+            bottom.add(lbOut, BorderLayout.NORTH);
             bottom.add(new JScrollPane(out), BorderLayout.CENTER);
 
             JSplitPane sp = new JSplitPane(JSplitPane.VERTICAL_SPLIT, body, bottom);
             sp.setResizeWeight(0.62);
             sp.setDividerSize(6);
+            sp.setBorder(new EmptyBorder(0, 0, 0, 0));
             add(sp, BorderLayout.CENTER);
+
+            JLabel hint = new JLabel(" 可用函数：send / send_line / send_hex / delay / print / is_open"
+                    + "      沙箱里没有 io / os / require");
+            hint.setFont(Ui.font(11));
+            hint.setForeground(Ui.MUTED);
+            hint.setBorder(new EmptyBorder(6, 10, 6, 10));
+            add(hint, BorderLayout.SOUTH);
+            getContentPane().setBackground(Ui.SURFACE);
 
             addWindowListener(new WindowAdapter() {
                 @Override
@@ -3718,6 +4043,10 @@ public class YuciCom {
             }
 
             tabs.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
+            tabs.setUI(new FlatTabbedPaneUI(Ui.SURFACE));
+            tabs.setBackground(Ui.BG);
+            tabs.setOpaque(true);
+            getContentPane().setBackground(Ui.BG);
             tabs.addChangeListener(e -> syncMenu());
             tabs.addMouseListener(new java.awt.event.MouseAdapter() {
                 @Override
@@ -3758,8 +4087,7 @@ public class YuciCom {
         }
 
         SessionPanel addSession() {
-            SessionPanel p = new SessionPanel(this);
-            seq++;
+            SessionPanel p = new SessionPanel(this, ++seq);
             tabs.addTab(p.titleText(), p);
             tabs.setSelectedComponent(p);
             syncMenu();

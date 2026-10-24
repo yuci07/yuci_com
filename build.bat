@@ -62,7 +62,7 @@ rem manifest needs Multi-Release because jSerialComm ships META-INF/versions
 > "%BUILD%\manifest.txt" echo Main-Class: YuciCom
 >>"%BUILD%\manifest.txt" echo Multi-Release: true
 >>"%BUILD%\manifest.txt" echo Implementation-Title: yuci_com
->>"%BUILD%\manifest.txt" echo Implementation-Version: 2.3
+>>"%BUILD%\manifest.txt" echo Implementation-Version: 2.4
 
 pushd "%BUILD%\classes"
 "%JDK%\bin\jar.exe" cfm "%BUILD%\jar\yuci_com.jar" "%BUILD%\manifest.txt" .
@@ -98,7 +98,7 @@ if not exist "%ROOT%\dist" mkdir "%ROOT%\dist"
   --main-class YuciCom ^
   --icon "%ROOT%\yuci_com.ico" ^
   --dest "%ROOT%\dist" ^
-  --app-version 2.3 ^
+  --app-version 2.4 ^
   --vendor "yuci" ^
   --add-modules java.base,java.desktop,java.logging,jdk.unsupported ^
   --java-options "-Xmx512m" ^
