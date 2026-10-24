@@ -20,6 +20,7 @@ if not defined JDK (
 )
 
 set "JSC=%ROOT%\lib\jSerialComm-2.11.4.jar"
+set "LUAJ=%ROOT%\lib\luaj-jse-3.0.1.jar"
 set "SRC=%ROOT%\src\YuciCom.java"
 set "BUILD=%ROOT%\build"
 
@@ -31,6 +32,10 @@ if not exist "%JSC%" (
   echo [ERROR] missing "%JSC%"
   exit /b 1
 )
+if not exist "%LUAJ%" (
+  echo [ERROR] missing "%LUAJ%"
+  exit /b 1
+)
 
 echo [1/5] clean
 if exist "%BUILD%" rmdir /s /q "%BUILD%"
@@ -38,7 +43,7 @@ mkdir "%BUILD%\classes" 2>nul
 mkdir "%BUILD%\jar" 2>nul
 
 echo [2/5] compile
-"%JDK%\bin\javac.exe" -encoding UTF-8 -nowarn -d "%BUILD%\classes" -cp "%JSC%" "%SRC%"
+"%JDK%\bin\javac.exe" -encoding UTF-8 -nowarn -d "%BUILD%\classes" -cp "%JSC%;%LUAJ%" "%SRC%"
 if errorlevel 1 (
   echo [ERROR] compile failed
   exit /b 1
@@ -48,6 +53,8 @@ echo [3/5] merge jSerialComm into fat jar
 pushd "%BUILD%\classes"
 "%JDK%\bin\jar.exe" xf "%JSC%"
 if exist "META-INF\MANIFEST.MF" del /q "META-INF\MANIFEST.MF"
+"%JDK%\bin\jar.exe" xf "%LUAJ%"
+if exist "META-INF\MANIFEST.MF" del /q "META-INF\MANIFEST.MF"
 copy /y "%ROOT%\icon.png" "icon.png" >nul
 popd
 
@@ -55,7 +62,7 @@ rem manifest needs Multi-Release because jSerialComm ships META-INF/versions
 > "%BUILD%\manifest.txt" echo Main-Class: YuciCom
 >>"%BUILD%\manifest.txt" echo Multi-Release: true
 >>"%BUILD%\manifest.txt" echo Implementation-Title: yuci_com
->>"%BUILD%\manifest.txt" echo Implementation-Version: 2.1
+>>"%BUILD%\manifest.txt" echo Implementation-Version: 2.3
 
 pushd "%BUILD%\classes"
 "%JDK%\bin\jar.exe" cfm "%BUILD%\jar\yuci_com.jar" "%BUILD%\manifest.txt" .
@@ -91,7 +98,7 @@ if not exist "%ROOT%\dist" mkdir "%ROOT%\dist"
   --main-class YuciCom ^
   --icon "%ROOT%\yuci_com.ico" ^
   --dest "%ROOT%\dist" ^
-  --app-version 2.2 ^
+  --app-version 2.3 ^
   --vendor "yuci" ^
   --add-modules java.base,java.desktop,java.logging,jdk.unsupported ^
   --java-options "-Xmx512m" ^

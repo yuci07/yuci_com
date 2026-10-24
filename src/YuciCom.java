@@ -1,4 +1,18 @@
 import com.fazecast.jSerialComm.SerialPort;
+import org.luaj.vm2.Globals;
+import org.luaj.vm2.LoadState;
+import org.luaj.vm2.LuaError;
+import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.Varargs;
+import org.luaj.vm2.compiler.LuaC;
+import org.luaj.vm2.lib.OneArgFunction;
+import org.luaj.vm2.lib.PackageLib;
+import org.luaj.vm2.lib.StringLib;
+import org.luaj.vm2.lib.TableLib;
+import org.luaj.vm2.lib.VarArgFunction;
+import org.luaj.vm2.lib.ZeroArgFunction;
+import org.luaj.vm2.lib.jse.JseBaseLib;
+import org.luaj.vm2.lib.jse.JseMathLib;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -64,7 +78,7 @@ import java.util.zip.ZipOutputStream;
 public class YuciCom {
 
     public static final String APP = "yuci_com";
-    public static final String VERSION = "2.2";
+    public static final String VERSION = "2.3";
     /** 开源仓库地址：fork 之后把这一行改成自己的仓库即可。 */
     public static final String PROJECT_URL = "https://github.com/yuci07/yuci_com";
 
@@ -939,10 +953,10 @@ public class YuciCom {
             eq("摘要把换行转义", new QuickItem("t", "a\r\nb", false, 0).summary(), "a\\r\\nb");
 
             System.out.println("-- 字体 --");
-            eq("中文等宽字体可显示汉字", MainFrame.monoZh(13).canDisplay('中'), true);
-            eq("中文等宽字体可显示 HEX", MainFrame.monoZh(13).canDisplay('A'), true);
+            eq("中文等宽字体可显示汉字", SessionPanel.monoZh(13).canDisplay('中'), true);
+            eq("中文等宽字体可显示 HEX", SessionPanel.monoZh(13).canDisplay('A'), true);
             eq("英文等宽字体为 Consolas",
-                    "Consolas".equalsIgnoreCase(MainFrame.monoEn(13).getFamily(Locale.ENGLISH)), true);
+                    "Consolas".equalsIgnoreCase(SessionPanel.monoEn(13).getFamily(Locale.ENGLISH)), true);
 
             System.out.println("-- 背景显示方式 --");
             eq("BgTextPane 模式数", BgTextPane.MODES.length, 4);
@@ -1091,7 +1105,7 @@ public class YuciCom {
                 UIManager.put("MenuItem.font", new Font("Microsoft YaHei UI", Font.PLAIN, 12));
             } catch (Exception ignored) {
             }
-            SwingUtilities.invokeLater(() -> new MainFrame().setVisible(true));
+            SwingUtilities.invokeLater(() -> new AppFrame().setVisible(true));
         }
     }
 
@@ -1121,7 +1135,7 @@ public class YuciCom {
         }
     }
 
-    static final class MainFrame extends JFrame {
+    static final class SessionPanel extends JPanel {
 
         /* --- 串口 --- */
         private final SerialEngine engine = new SerialEngine();
@@ -1203,21 +1217,16 @@ public class YuciCom {
         private final ArrayDeque<Rec> recs = new ArrayDeque<>();
         private ChartFrame chart;
 
-        MainFrame() {
-            super(APP + " " + VERSION + "  ·  串口调试助手");
-            setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
-            setMinimumSize(new Dimension(920, 640));
-            setSize(1120, 780);
-            setLocationRelativeTo(null);
+        private final AppFrame host;
+        private final JMenuBar myMenu;
 
-            try {
-                java.net.URL ico = MainFrame.class.getResource("/icon.png");
-                if (ico != null) setIconImage(Toolkit.getDefaultToolkit().getImage(ico));
-            } catch (Exception ignored) {
-            }
+        SessionPanel(AppFrame host) {
+            this.host = host;
+            setLayout(new BorderLayout());
 
             initStyles();
             buildUi();
+            myMenu = buildMenu();
             loadConfig();
             refreshPorts();
 
@@ -1232,16 +1241,11 @@ public class YuciCom {
 
             restoreBackground();
 
-            addWindowListener(new WindowAdapter() {
-                @Override
-                public void windowClosing(WindowEvent e) {
-                    saveConfig();
-                    engine.close();
-                    dispose();
-                    System.exit(0);
-                }
-            });
             sys("yuci_com " + VERSION + " 就绪。选好串口点「打开串口」。");
+        }
+
+        JMenuBar menuBar() {
+            return myMenu;
         }
 
         /* ---------- 样式与皮肤 ---------- */
@@ -1364,7 +1368,6 @@ public class YuciCom {
             mainSplit.setBorder(null);
             add(mainSplit, BorderLayout.CENTER);
 
-            setJMenuBar(buildMenu());
             wireActions();
             SwingUtilities.invokeLater(() -> mainSplit.setDividerLocation(0.66));
         }
@@ -1512,7 +1515,14 @@ public class YuciCom {
             /* ---------------- 文件 ---------------- */
             JMenu mFile = new JMenu("文件");
             mFile.setMnemonic(KeyEvent.VK_F);
-            mFile.add(item("新建会话", e -> newSession(), ks(KeyEvent.VK_N, InputEvent.CTRL_DOWN_MASK)));
+            mFile.add(item("新建标签页", e -> {
+                if (host != null) host.addSession();
+            }, ks(KeyEvent.VK_T, InputEvent.CTRL_DOWN_MASK)));
+            mFile.add(item("关闭当前标签页", e -> {
+                if (host != null) host.closeSession(SessionPanel.this);
+            }, ks(KeyEvent.VK_W, InputEvent.CTRL_DOWN_MASK)));
+            mFile.add(item("新建会话（清空当前）", e -> newSession(),
+                    ks(KeyEvent.VK_N, InputEvent.CTRL_DOWN_MASK)));
             mFile.addSeparator();
             mFile.add(item("打开接收日志…", e -> openLog(),
                     ks(KeyEvent.VK_O, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK)));
@@ -1619,9 +1629,12 @@ public class YuciCom {
             mTool.add(item("手工发送", e -> selectSendTab(0), ks(KeyEvent.VK_1, InputEvent.CTRL_DOWN_MASK)));
             mTool.add(item("快捷发送", e -> selectSendTab(1), ks(KeyEvent.VK_2, InputEvent.CTRL_DOWN_MASK)));
             mTool.addSeparator();
-            mTool.add(item("数据统计…", e -> openStats(), ks(KeyEvent.VK_T, InputEvent.CTRL_DOWN_MASK)));
+            mTool.add(item("数据统计…", e -> openStats(),
+                    ks(KeyEvent.VK_T, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK)));
             mTool.add(item("数据曲线图…", e -> openChart(),
                     ks(KeyEvent.VK_G, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK)));
+            mTool.add(item("脚本发送…", e -> openScript(),
+                    ks(KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK)));
 
             JMenu mEnc = new JMenu("字符编码");
             for (String s : Enc.NAMES) mEnc.add(item(s, e -> cbEncoding.setSelectedItem(s)));
@@ -1917,6 +1930,7 @@ public class YuciCom {
             Config.put("port.parity", cbParity.getSelectedIndex());
             Config.put("port.stop", cbStop.getSelectedIndex());
             Config.put("port.flow", flow);
+            if (host != null) host.retitle(this);
         }
 
         private void afterClose(String reason) {
@@ -1933,6 +1947,7 @@ public class YuciCom {
             lastRxTick = 0;
             stopTimedSend();
             chkTimed.setSelected(false);
+            if (host != null) host.retitle(this);
         }
 
         private void updateSignals() {
@@ -2168,12 +2183,36 @@ public class YuciCom {
 
         private void openChart() {
             if (chart == null || !chart.isDisplayable()) {
-                chart = new ChartFrame(this);
+                chart = new ChartFrame(SwingUtilities.getWindowAncestor(this));
                 chart.setVisible(true);
             } else {
                 chart.setExtendedState(chart.getExtendedState() & ~java.awt.Frame.ICONIFIED);
                 chart.toFront();
             }
+        }
+
+        /* ---------- 脚本 ---------- */
+
+        boolean isPortOpen() {
+            return engine.isOpen();
+        }
+
+        /** 脚本里的 send：沿用界面上的行尾和编码设置。 */
+        void sendScript(String text, boolean forceLine) {
+            if (!engine.isOpen() || text == null) return;
+            String t = text;
+            if (forceLine && !t.endsWith("\n")) t = t + "\r\n";
+            sendBytes(buildTxBytes(t), t);
+        }
+
+        void sendScriptHex(String hex) {
+            if (!engine.isOpen() || hex == null) return;
+            byte[] b = Hex.parse(hex);
+            if (b.length > 0) sendBytes(b, Hex.of(b));
+        }
+
+        private void openScript() {
+            new ScriptFrame(this).setVisible(true);
         }
 
         /* ---------- 发送 ---------- */
@@ -2295,17 +2334,40 @@ public class YuciCom {
         /* ---------- 会话 / 配置导入导出 ---------- */
 
         private void quit() {
+            if (host != null) host.shutdown();
+        }
+
+        /** 关掉本会话占用的串口和定时器，从 Tab 里移除时调用。 */
+        void closeSession() {
+            if (flushTimer != null) flushTimer.stop();
+            if (signalTimer != null) signalTimer.stop();
+            if (rateTimer != null) rateTimer.stop();
+            if (timedSendTimer != null) timedSendTimer.stop();
             saveConfig();
             engine.close();
-            dispose();
-            System.exit(0);
+        }
+
+        /** 标签页标题：连上了显示「COM5 · 115200」，没连只显示端口名。 */
+        String titleText() {
+            Object sel = cbPort.getSelectedItem();
+            String name = sel instanceof PortItem ? ((PortItem) sel).name : "新会话";
+            return engine.isOpen() ? name + " ·  " + cbBaud.getSelectedItem() : name;
+        }
+
+        /** 最后一个标签页不真的关掉，关串口 + 清干净就地复用。 */
+        void closePortAndClear() {
+            engine.close();
+            clearRx();
+            history.clear();
+            sys("已关闭串口并清空。最后一个标签页保留，直接关窗口就退出。");
+            if (host != null) host.retitle(this);
         }
 
         private void newSession() {
             clearRx();
             history.clear();
             lastRxTick = 0;
-            sys("已开始新的会话");
+            sys("已开始新的会话（要同时看另一个串口请用「新建标签页」）");
         }
 
         private void openLog() {
@@ -2403,14 +2465,22 @@ public class YuciCom {
 
         private void toggleFullScreen() {
             fullScreen = !fullScreen;
-            setExtendedState(fullScreen
-                    ? (getExtendedState() | JFrame.MAXIMIZED_BOTH)
-                    : (getExtendedState() & ~JFrame.MAXIMIZED_BOTH));
+            applyWindowState();
+        }
+
+        /** 全屏状态是窗口的，不是面板的，得转给外层窗口。 */
+        private void applyWindowState() {
+            Window w = SwingUtilities.getWindowAncestor(this);
+            if (!(w instanceof java.awt.Frame)) return;
+            java.awt.Frame fr = (java.awt.Frame) w;
+            fr.setExtendedState(fullScreen
+                    ? (fr.getExtendedState() | java.awt.Frame.MAXIMIZED_BOTH)
+                    : (fr.getExtendedState() & ~java.awt.Frame.MAXIMIZED_BOTH));
         }
 
         private void resetLayout() {
             fullScreen = false;
-            setExtendedState(getExtendedState() & ~JFrame.MAXIMIZED_BOTH);
+            applyWindowState();
             mainSplit.setDividerLocation(0.66);
             setFontSize(13);
             sendTabs.setSelectedIndex(0);
@@ -2792,15 +2862,15 @@ public class YuciCom {
             d.setLayout(new BorderLayout(8, 8));
 
             JTextArea input = new JTextArea(5, 44);
-            input.setFont(MainFrame.mono(13));
+            input.setFont(SessionPanel.mono(13));
             input.setText(hexSend.isSelected() ? "" : "");
             input.setLineWrap(true);
 
             JComboBox<String> kind = new JComboBox<>(Sum.KINDS);
             JLabel result = new JLabel("—");
-            result.setFont(MainFrame.mono(14));
+            result.setFont(SessionPanel.mono(14));
             JLabel ascii = new JLabel(" ");
-            ascii.setFont(MainFrame.mono(12));
+            ascii.setFont(SessionPanel.mono(12));
 
             JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
             top.add(new JLabel("输入内容（HEX，也支持 ASCII）"));
@@ -2886,7 +2956,7 @@ public class YuciCom {
             JTextField tfHeader = new JTextField("AA 55", 26);
             JTextField tfTail = new JTextField("0D 0A", 26);
             JTextArea payload = new JTextArea(5, 40);
-            payload.setFont(MainFrame.mono(13));
+            payload.setFont(SessionPanel.mono(13));
             payload.setLineWrap(true);
             payload.setText("01 02 03");
             JCheckBox chkLen = new JCheckBox("插入 1 字节长度字段");
@@ -2894,7 +2964,7 @@ public class YuciCom {
             JComboBox<String> cbCheck = new JComboBox<>(new String[]{"NONE", "SUM8", "CRC8", "CRC8-MAXIM", "CRC16-MODBUS", "CRC16-CCITT"});
             cbCheck.setSelectedItem("CRC16-MODBUS");
             JTextArea preview = new JTextArea(3, 40);
-            preview.setFont(MainFrame.mono(13));
+            preview.setFont(SessionPanel.mono(13));
             preview.setEditable(false);
             preview.setLineWrap(true);
             JLabel info = new JLabel("—");
@@ -3133,7 +3203,7 @@ public class YuciCom {
     /* ==================== 快捷发送（多页发送） ==================== */
 
     static final class QuickSendPanel extends JPanel {
-        private final MainFrame owner;
+        private final SessionPanel owner;
         private final List<QuickItem> items = new ArrayList<>();
         private final QuickModel model = new QuickModel();
         private final JTable table = new JTable(model);
@@ -3142,7 +3212,7 @@ public class YuciCom {
         private Timer loopTimer;
         private int loopIndex;
 
-        QuickSendPanel(MainFrame owner) {
+        QuickSendPanel(SessionPanel owner) {
             super(new BorderLayout(6, 4));
             this.owner = owner;
 
@@ -3255,11 +3325,11 @@ public class YuciCom {
 
             JTextField tfName = new JTextField(base.name, 16);
             JTextArea taData = new JTextArea(base.data, 4, 40);
-            taData.setFont(MainFrame.mono(13));
+            taData.setFont(SessionPanel.mono(13));
             taData.setLineWrap(true);
             JCheckBox chkHex = new JCheckBox("HEX 格式", base.hex);
             JComboBox<String> cbEnd = new JComboBox<>(new String[]{"无", "\\r\\n", "\\n", "\\r"});
-            cbEnd.setSelectedIndex(MainFrame.clamp(base.lineEnd, 0, 3));
+            cbEnd.setSelectedIndex(SessionPanel.clamp(base.lineEnd, 0, 3));
 
             JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
             top.add(new JLabel("名称"));
@@ -3374,12 +3444,12 @@ public class YuciCom {
             StringBuilder sb = new StringBuilder();
             sb.append("串口状态   ").append(open ? "已连接  " + port : "未连接").append('\n');
             sb.append("连接时长   ").append(dur(upSec)).append('\n');
-            sb.append("接收字节   ").append(MainFrame.human(rx)).append("   (").append(rx).append(" B)\n");
-            sb.append("发送字节   ").append(MainFrame.human(tx)).append("   (").append(tx).append(" B)\n");
+            sb.append("接收字节   ").append(SessionPanel.human(rx)).append("   (").append(rx).append(" B)\n");
+            sb.append("发送字节   ").append(SessionPanel.human(tx)).append("   (").append(tx).append(" B)\n");
             sb.append("接收次数   ").append(rxCalls).append(" 次\n");
             sb.append("发送次数   ").append(txFrames).append(" 次\n");
-            sb.append("平均接收   ").append(upSec > 0 ? MainFrame.human(rx / Math.max(1, upSec)) + "/s" : "—").append('\n');
-            sb.append("平均发送   ").append(upSec > 0 ? MainFrame.human(tx / Math.max(1, upSec)) + "/s" : "—");
+            sb.append("平均接收   ").append(upSec > 0 ? SessionPanel.human(rx / Math.max(1, upSec)) + "/s" : "—").append('\n');
+            sb.append("平均发送   ").append(upSec > 0 ? SessionPanel.human(tx / Math.max(1, upSec)) + "/s" : "—");
             JOptionPane.showMessageDialog(parent, sb.toString(), "数据统计", JOptionPane.INFORMATION_MESSAGE);
         }
 
@@ -3389,6 +3459,353 @@ public class YuciCom {
             if (h > 0) return h + " 小时 " + m + " 分 " + s + " 秒";
             if (m > 0) return m + " 分 " + s + " 秒";
             return s + " 秒";
+        }
+    }
+
+    /**
+     * 脚本化发送：内置 LuaJ（纯 Java 实现的 Lua 5.2），脚本里可以循环、判断、拼字符串。
+     * 只装 base/table/string/math 四个库，**不装 io、os、package**，
+     * 所以脚本碰不到文件系统，也执行不了系统命令。
+     */
+    static final class ScriptFrame extends JFrame {
+
+        private static final String SAMPLE =
+                "-- 每秒发一行 PING，共 10 次；设备没开就先提示\n" +
+                        "for i = 1, 10 do\n" +
+                        "  if not is_open() then\n" +
+                        "    print(\"串口没打开，先点「打开串口」\")\n" +
+                        "    break\n" +
+                        "  end\n" +
+                        "  send_line(\"PING \" .. i)\n" +
+                        "  print(\"TX  PING \" .. i)\n" +
+                        "  delay(1000)\n" +
+                        "end\n" +
+                        "print(\"结束\")";
+
+        private final SessionPanel owner;
+        private final JTextArea code = new JTextArea();
+        private final JTextArea out = new JTextArea();
+        private final JButton btnRun = new JButton("运行");
+        private final JButton btnStop = new JButton("停止");
+        private volatile boolean running;
+        private volatile boolean stopping;
+        private Thread runner;
+
+        ScriptFrame(SessionPanel owner) {
+            super("脚本发送  ·  Lua");
+            this.owner = owner;
+            setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+            setSize(760, 560);
+            setMinimumSize(new Dimension(520, 380));
+            setLocationRelativeTo(owner);
+            setLayout(new BorderLayout());
+
+            code.setText(SAMPLE);
+            code.setFont(SessionPanel.monoZh(13));
+            code.setTabSize(2);
+            out.setFont(SessionPanel.monoZh(12));
+            out.setEditable(false);
+            out.setBackground(new Color(0xF7, 0xF7, 0xF7));
+
+            JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
+            btnRun.addActionListener(e -> run());
+            btnStop.setEnabled(false);
+            btnStop.addActionListener(e -> stop());
+            JButton btnSample = new JButton("插入示例");
+            btnSample.addActionListener(e -> code.setText(SAMPLE));
+            JButton btnClear = new JButton("清空日志");
+            btnClear.addActionListener(e -> out.setText(""));
+            bar.add(btnRun);
+            bar.add(btnStop);
+            bar.add(btnSample);
+            bar.add(btnClear);
+            bar.add(new JLabel("  send_line / send / send_hex / delay / print / is_open"));
+            add(bar, BorderLayout.NORTH);
+
+            JPanel body = new JPanel(new BorderLayout());
+            body.add(new JLabel(" 脚本"), BorderLayout.NORTH);
+            body.add(new JScrollPane(code), BorderLayout.CENTER);
+            JPanel bottom = new JPanel(new BorderLayout());
+            bottom.add(new JLabel(" 输出"), BorderLayout.NORTH);
+            bottom.add(new JScrollPane(out), BorderLayout.CENTER);
+
+            JSplitPane sp = new JSplitPane(JSplitPane.VERTICAL_SPLIT, body, bottom);
+            sp.setResizeWeight(0.62);
+            sp.setDividerSize(6);
+            add(sp, BorderLayout.CENTER);
+
+            addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowClosing(WindowEvent e) {
+                    stop();
+                }
+            });
+        }
+
+        private void appendLog(String s) {
+            SwingUtilities.invokeLater(() -> {
+                out.append(s + "\n");
+                out.setCaretPosition(out.getDocument().getLength());
+            });
+        }
+
+        private void run() {
+            if (running) return;
+            final String src = code.getText();
+            if (src.trim().isEmpty()) {
+                appendLog("-- 脚本是空的 --");
+                return;
+            }
+            running = true;
+            stopping = false;
+            btnRun.setEnabled(false);
+            btnStop.setEnabled(true);
+            runner = new Thread(() -> {
+                try {
+                    Globals g = buildGlobals();
+                    g.load(src, "yuci_script").call();
+                    appendLog("-- 脚本结束 --");
+                } catch (Throwable t) {
+                    if (!stopping) {
+                        String m = t.getMessage();
+                        appendLog("-- 出错: " + (m == null ? t.getClass().getSimpleName() : m) + " --");
+                    } else {
+                        appendLog("-- 已停止 --");
+                    }
+                } finally {
+                    running = false;
+                    SwingUtilities.invokeLater(() -> {
+                        btnRun.setEnabled(true);
+                        btnStop.setEnabled(false);
+                    });
+                }
+            }, "yuci-script");
+            runner.setDaemon(true);
+            runner.start();
+        }
+
+        private void stop() {
+            stopping = true;
+            running = false;
+            if (runner != null) runner.interrupt();
+        }
+
+        private Globals buildGlobals() {
+            Globals g = new Globals();
+            g.load(new JseBaseLib());
+            /* TableLib 要靠 package.loaded 落脚，所以 PackageLib 得先装；
+               装完立刻把搜索路径清空并摘掉 require，脚本就没法从磁盘加载任何东西了 */
+            g.load(new PackageLib());
+            g.load(new TableLib());
+            g.load(new StringLib());
+            g.load(new JseMathLib());
+            /* LuaJ 默认不带编译器，不装这两句 load() 会报 "No compiler." */
+            LoadState.install(g);
+            LuaC.install(g);
+
+            LuaValue pkg = g.get("package");
+            if (!pkg.isnil()) {
+                pkg.set("path", LuaValue.valueOf(""));
+                pkg.set("cpath", LuaValue.valueOf(""));
+            }
+            g.set("require", LuaValue.NIL);
+            g.set("dofile", LuaValue.NIL);
+            g.set("loadfile", LuaValue.NIL);
+
+            g.set("print", new VarArgFunction() {
+                @Override
+                public Varargs invoke(Varargs a) {
+                    StringBuilder sb = new StringBuilder();
+                    for (int i = 1; i <= a.narg(); i++) {
+                        if (i > 1) sb.append('\t');
+                        sb.append(a.arg(i).tojstring());
+                    }
+                    appendLog(sb.toString());
+                    return NONE;
+                }
+            });
+
+            g.set("send", new OneArgFunction() {
+                @Override
+                public LuaValue call(LuaValue a) {
+                    final String s = a.tojstring();
+                    onEdt(() -> owner.sendScript(s, false));
+                    return NONE;
+                }
+            });
+
+            g.set("send_line", new OneArgFunction() {
+                @Override
+                public LuaValue call(LuaValue a) {
+                    final String s = a.tojstring();
+                    onEdt(() -> owner.sendScript(s, true));
+                    return NONE;
+                }
+            });
+
+            g.set("send_hex", new OneArgFunction() {
+                @Override
+                public LuaValue call(LuaValue a) {
+                    final String s = a.tojstring();
+                    onEdt(() -> owner.sendScriptHex(s));
+                    return NONE;
+                }
+            });
+
+            g.set("delay", new OneArgFunction() {
+                @Override
+                public LuaValue call(LuaValue a) {
+                    sleep(Math.max(0, a.checklong()));
+                    return NONE;
+                }
+            });
+
+            g.set("is_open", new ZeroArgFunction() {
+                @Override
+                public LuaValue call() {
+                    return LuaValue.valueOf(owner.isPortOpen());
+                }
+            });
+            return g;
+        }
+
+        /** 到点才返回；中途点「停止」会立刻抛出来打断脚本。 */
+        private void sleep(long ms) {
+            long end = System.currentTimeMillis() + ms;
+            while (true) {
+                if (!running) throw new LuaError("stopped");
+                long left = end - System.currentTimeMillis();
+                if (left <= 0) return;
+                try {
+                    Thread.sleep(Math.min(20, left));
+                } catch (InterruptedException e) {
+                    throw new LuaError("stopped");
+                }
+            }
+        }
+
+        private static void onEdt(Runnable r) {
+            if (SwingUtilities.isEventDispatchThread()) {
+                r.run();
+                return;
+            }
+            try {
+                SwingUtilities.invokeAndWait(r);
+            } catch (Exception ignored) {
+            }
+        }
+    }
+
+    /**
+     * 外层窗口：用标签页管理多个 SessionPanel。每个标签页有自己的引擎、接收区、
+     * 发送框和计数，所以能同时开两个 COM 口对发，或者一边烧录一边抓日志。
+     */
+    static final class AppFrame extends JFrame {
+
+        private final JTabbedPane tabs = new JTabbedPane();
+        private int seq;
+
+        AppFrame() {
+            super(APP + " " + VERSION + "  ·  串口调试助手");
+            setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
+            setMinimumSize(new Dimension(920, 640));
+            setSize(1120, 780);
+            setLocationRelativeTo(null);
+            try {
+                java.net.URL ico = AppFrame.class.getResource("/icon.png");
+                if (ico != null) setIconImage(Toolkit.getDefaultToolkit().getImage(ico));
+            } catch (Exception ignored) {
+            }
+
+            tabs.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
+            tabs.addChangeListener(e -> syncMenu());
+            tabs.addMouseListener(new java.awt.event.MouseAdapter() {
+                @Override
+                public void mousePressed(java.awt.event.MouseEvent e) {
+                    maybePopup(e);
+                }
+
+                @Override
+                public void mouseReleased(java.awt.event.MouseEvent e) {
+                    maybePopup(e);
+                }
+
+                private void maybePopup(java.awt.event.MouseEvent e) {
+                    if (!e.isPopupTrigger()) return;
+                    final int i = tabs.indexAtLocation(e.getX(), e.getY());
+                    if (i < 0) return;
+                    tabs.setSelectedIndex(i);
+                    JPopupMenu pm = new JPopupMenu();
+                    JMenuItem close = new JMenuItem("关闭此标签页");
+                    close.addActionListener(a -> closeSession((SessionPanel) tabs.getComponentAt(i)));
+                    pm.add(close);
+                    JMenuItem add = new JMenuItem("新建标签页");
+                    add.addActionListener(a -> addSession());
+                    pm.add(add);
+                    pm.show(tabs, e.getX(), e.getY());
+                }
+            });
+
+            add(tabs, BorderLayout.CENTER);
+            addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowClosing(WindowEvent e) {
+                    shutdown();
+                }
+            });
+
+            addSession();
+        }
+
+        SessionPanel addSession() {
+            SessionPanel p = new SessionPanel(this);
+            seq++;
+            tabs.addTab(p.titleText(), p);
+            tabs.setSelectedComponent(p);
+            syncMenu();
+            return p;
+        }
+
+        SessionPanel active() {
+            Component c = tabs.getSelectedComponent();
+            return c instanceof SessionPanel ? (SessionPanel) c : null;
+        }
+
+        /** 端口状态变了就刷新标签页标题和窗口标题。 */
+        void retitle(SessionPanel p) {
+            int i = tabs.indexOfComponent(p);
+            if (i < 0) return;
+            tabs.setTitleAt(i, p.titleText());
+            if (tabs.getSelectedComponent() == p) syncMenu();
+        }
+
+        void closeSession(SessionPanel p) {
+            if (p == null) return;
+            int i = tabs.indexOfComponent(p);
+            if (i < 0) return;
+            if (tabs.getTabCount() == 1) {
+                p.closePortAndClear();
+                return;
+            }
+            p.closeSession();
+            tabs.remove(i);
+            syncMenu();
+        }
+
+        private void syncMenu() {
+            SessionPanel p = active();
+            if (p == null) return;
+            setJMenuBar(p.menuBar());
+            setTitle(APP + " " + VERSION + "  ·  " + p.titleText());
+        }
+
+        void shutdown() {
+            for (int i = 0; i < tabs.getTabCount(); i++) {
+                Component c = tabs.getComponentAt(i);
+                if (c instanceof SessionPanel) ((SessionPanel) c).closeSession();
+            }
+            dispose();
+            System.exit(0);
         }
     }
 
